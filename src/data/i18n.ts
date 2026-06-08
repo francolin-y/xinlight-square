@@ -1,0 +1,188 @@
+export type Lang = "cn" | "en";
+
+export const navItems = [
+  {
+    href: "/",
+    key: "home",
+  },
+  {
+    href: "/magic",
+    key: "magic",
+  },
+  {
+    href: "/energy",
+    key: "energy",
+  },
+  {
+    href: "/market",
+    key: "market",
+  },
+  {
+    href: "/studio",
+    key: "studio",
+  },
+  {
+    href: "/tree",
+    key: "tree",
+  },
+] as const;
+
+export const copy = {
+  cn: {
+    siteName: "Stella Square",
+    nav: {
+      home: "天空广场",
+      magic: "魔法空间",
+      energy: "爱心充电站",
+      market: "快乐批发市场",
+      studio: "情趣切片工坊",
+      tree: "留言树",
+    },
+    home: {
+      loadingTitle: "正在穿过云层",
+      loadingSubtitle: "即将抵达广场…",
+      title: "天空广场",
+      intro:
+        "欢迎来到 天空广场。",
+      checkinToastTitle:"今日签到已完成",
+      checkinToastSubtitle:"继续保持哦！",
+      daysTogether: "我们已经在一起",
+      daysUnit: "天",
+      currentEnergy: "当前星光值",
+      goMarket: "去兑换礼物",
+      todayCheckin: "今日签到",
+      todayPuzzle: "今日谜题",
+      completed: "已完成",
+      incomplete: "未完成",
+      startPuzzle: "开始解谜",
+      calendarTitle: "本月签到记录",
+    },
+    magic: {
+      loadingTitle: "星光正在聚集",
+      loadingSubtitle: "魔法空间开启中",
+      title: "魔法空间",
+      intro:
+        "谜题陆续上线中，答对有惊喜哦！",
+      availableAt: "上线时间",
+      reward: "奖励",
+      openBox: "打开魔术盒",
+      unsolved: "未解开",
+      solved: "已解开",
+      locked: "尚未上线",
+      question: "题目",
+      clue: "线索",
+      answer: "答案",
+      answerPlaceholder: "输入你的答案",
+      submitAnswer: "提交答案",
+      close: "关闭",
+      correct: "答对了",
+      wrong: "答案不对，再想想",
+      unlockedMessage: "解锁留言",
+      unlockedPhoto: "解锁照片",
+    },
+    energy: {
+      loadingTitle: "正在注入爱意与星光",
+      loadingSubtitle: "爱心充电站启动中",
+      title: "爱心充电站",
+      intro: "这里会展示你的星光流水。",
+    },
+    market: {
+      loadingTitle: "快乐库存整理中",
+      loadingSubtitle: "批发市场即将开门",
+      title: "快乐批发市场",
+      intro: "这里可以用星光值兑换一切。",
+    },
+    studio: {
+      loadingTitle: "记忆切片加载中",
+      loadingSubtitle: "照片与视频正在归档",
+      title: "情趣切片工坊",
+      intro: "这里会保存已上传或通过谜题解锁的照片和视频。",
+    },
+    tree: {
+      loadingTitle: "留言树正在生长",
+      loadingSubtitle: "新的枝叶准备展开",
+      title: "留言树",
+      intro: "写写看吧。",
+    },
+  },
+  en: {
+    siteName: "Stella Square",
+    nav: {
+      home: "Skyland Square",
+      magic: "Magic Room",
+      energy: "Heart Charging Station",
+      market: "Joy Market",
+      studio: "Memory Slice Studio",
+      tree: "Message Tree",
+    },
+    home: {
+      loadingTitle: "Passing through the clouds",
+      loadingSubtitle: "Arriving at the square",
+      title: "Skyland Square",
+      intro:
+        "Welcome to Stella Square. This place tracks check-ins, starlight value, puzzle status, and our days together.",
+      checkinToastTitle:"Today's check-in completed",
+      checkinToastSubtitle:"Keep it up!",
+      daysTogether: "Days together",
+      daysUnit: "days",
+      currentEnergy: "Current starlight value",
+      goMarket: "Redeem gifts",
+      todayCheckin: "Today’s check-in",
+      todayPuzzle: "Today’s puzzle",
+      completed: "Completed",
+      incomplete: "Incomplete",
+      startPuzzle: "Start puzzle",
+      calendarTitle: "This month's check-in record",
+    },
+    magic: {
+      loadingTitle: "Starlight is gathering",
+      loadingSubtitle: "Opening the magic room",
+      title: "Magic Room",
+      intro:
+        "Time-released puzzles will appear here. Correct answers can grant starlight value, messages, and unlocked photos.",
+      availableAt: "Available at",
+      reward: "Reward",
+      openBox: "Open magic box",
+      unsolved: "Unsolved",
+      solved: "Solved",
+      locked: "Not available yet",
+      question: "Question",
+      clue: "Clue",
+      answer: "Answer",
+      answerPlaceholder: "Enter your answer",
+      submitAnswer: "Submit answer",
+      close: "Close",
+      correct: "Correct",
+      wrong: "Not quite. Try again.",
+       unlockedMessage: "Unlocked message",
+       unlockedPhoto: "Unlocked photo",
+    },
+    energy: {
+      loadingTitle: "Charging with starlight",
+      loadingSubtitle: "Starting the heart station",
+      title: "Heart Charging Station",
+      intro: "This page will show starlight sources and the energy ledger.",
+    },
+    market: {
+      loadingTitle: "Sorting joyful inventory",
+      loadingSubtitle: "The market is opening",
+      title: "Joy Market",
+      intro:
+        "Use starlight value to redeem everything, literally.",
+    },
+    studio: {
+      loadingTitle: "Loading memory slices",
+      loadingSubtitle: "Photos and videos are being archived",
+      title: "Memory Slice Studio",
+      intro:
+        "Uploaded media and puzzle-unlocked photos or videos will be stored here.",
+    },
+    tree: {
+      loadingTitle: "The message tree is growing",
+      loadingSubtitle: "New branches are opening",
+      title: "Message Tree",
+      intro:
+        "Want to write something? Go ahead.",
+    },
+  },
+};
