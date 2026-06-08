@@ -96,6 +96,7 @@ export default function HomePage() {
       loadingTitle={t.home.loadingTitle}
       loadingSubtitle={t.home.loadingSubtitle}
       loadingVariant="cloud"
+      backgroundVariant="plaza"
     >
       <CheckinToast 
         title={t.home.checkinToastTitle}
