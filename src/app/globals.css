@@ -52,3 +52,398 @@ a {
 .animate-loading-text {
   animation: loading-text 650ms ease-in-out;
 }
+
+@keyframes portal-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.animate-portal-pulse {
+  animation: portal-pulse 1.35s ease-in-out infinite;
+}
+
+/* 通用中心柔光 */
+
+.portal-orb-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.38), transparent 28%),
+    radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.26), transparent 24%),
+    radial-gradient(circle at 80% 76%, rgba(255, 255, 255, 0.2), transparent 24%);
+}
+
+/* 点名广场 loading：层层云雾 */
+
+.portal-sun-glow {
+  position: absolute;
+  left: 8%;
+  top: 10%;
+  width: 38rem;
+  height: 38rem;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 245, 210, 0.58),
+    rgba(255, 220, 150, 0.22) 38%,
+    transparent 68%
+  );
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+.portal-cloud {
+  position: absolute;
+  left: -24%;
+  width: 148%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 56%, rgba(255, 255, 255, 0.95) 0 7%, transparent 17%),
+    radial-gradient(circle at 25% 44%, rgba(255, 255, 255, 0.86) 0 10%, transparent 22%),
+    radial-gradient(circle at 45% 60%, rgba(255, 255, 255, 0.92) 0 12%, transparent 25%),
+    radial-gradient(circle at 66% 48%, rgba(255, 255, 255, 0.82) 0 10%, transparent 23%),
+    radial-gradient(circle at 84% 58%, rgba(255, 255, 255, 0.9) 0 9%, transparent 22%);
+  filter: blur(20px);
+}
+
+.portal-cloud-1 {
+  top: 6%;
+  height: 34%;
+  opacity: 0.72;
+  animation: cloud-drift-right 5.8s ease-in-out infinite alternate;
+}
+
+.portal-cloud-2 {
+  top: 28%;
+  height: 38%;
+  opacity: 0.5;
+  animation: cloud-drift-left 6.8s ease-in-out infinite alternate;
+}
+
+.portal-cloud-3 {
+  bottom: 4%;
+  height: 40%;
+  opacity: 0.62;
+  animation: cloud-float 7.4s ease-in-out infinite alternate;
+}
+
+.portal-cloud-4 {
+  top: 52%;
+  height: 30%;
+  opacity: 0.28;
+  filter: blur(28px);
+  animation: cloud-drift-right 8s ease-in-out infinite alternate;
+}
+
+.portal-light-beam {
+  position: absolute;
+  left: 50%;
+  top: -10%;
+  width: 18rem;
+  height: 130%;
+  transform: translateX(-50%) rotate(10deg);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.24),
+    transparent
+  );
+  filter: blur(18px);
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+@keyframes cloud-drift-right {
+  from {
+    transform: translateX(-4%) translateY(0);
+  }
+
+  to {
+    transform: translateX(4%) translateY(-2%);
+  }
+}
+
+@keyframes cloud-drift-left {
+  from {
+    transform: translateX(4%) translateY(1%);
+  }
+
+  to {
+    transform: translateX(-4%) translateY(-1%);
+  }
+}
+
+@keyframes cloud-float {
+  from {
+    transform: translateX(-3%) translateY(2%) scale(1.06);
+  }
+
+  to {
+    transform: translateX(3%) translateY(-2%) scale(1.12);
+  }
+}
+
+/* 魔法空间 loading：旋转魔法阵 */
+
+.portal-magic-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  box-shadow:
+    0 0 36px rgba(255, 255, 255, 0.28),
+    inset 0 0 36px rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+
+.portal-magic-ring-1 {
+  width: 26rem;
+  height: 26rem;
+  margin-left: -13rem;
+  margin-top: -13rem;
+  animation: portal-spin 8s linear infinite;
+}
+
+.portal-magic-ring-2 {
+  width: 38rem;
+  height: 38rem;
+  margin-left: -19rem;
+  margin-top: -19rem;
+  opacity: 0.52;
+  animation: portal-spin-reverse 12s linear infinite;
+}
+
+.portal-sparkles {
+  position: absolute;
+  inset: 0;
+  opacity: 0.7;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px);
+  background-position:
+    12% 18%,
+    72% 64%;
+  background-size:
+    92px 92px,
+    128px 128px;
+  animation: sparkle-drift 4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes portal-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes portal-spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes sparkle-drift {
+  from {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  to {
+    transform: translateY(-14px);
+    opacity: 0.85;
+  }
+}
+
+/* 爱心充电站 / 快乐批发市场 loading：漂浮符号 */
+
+.portal-floating-dot {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 2rem;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+  animation: float-up 4.6s ease-in-out infinite;
+}
+
+.portal-floating-dot-1 {
+  left: 18%;
+  bottom: 18%;
+  animation-delay: 0s;
+}
+
+.portal-floating-dot-2 {
+  left: 32%;
+  bottom: 10%;
+  animation-delay: 0.8s;
+}
+
+.portal-floating-dot-3 {
+  right: 24%;
+  bottom: 16%;
+  animation-delay: 1.4s;
+}
+
+.portal-floating-dot-4 {
+  right: 12%;
+  bottom: 28%;
+  animation-delay: 2s;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(16px) scale(0.92);
+    opacity: 0;
+  }
+
+  30% {
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translateY(-120px) scale(1.12);
+    opacity: 0;
+  }
+}
+
+/* 情趣切片工坊 loading：胶片切片 */
+
+.portal-film-strip {
+  position: absolute;
+  width: 34rem;
+  height: 8rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.36);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 8%,
+      rgba(255, 255, 255, 0.28) 8% 10%,
+      transparent 10% 20%
+    ),
+    rgba(255, 255, 255, 0.08);
+  background-size: 5rem 100%;
+  filter: blur(0.2px);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.portal-film-strip-1 {
+  left: -8rem;
+  top: 18%;
+  transform: rotate(-12deg);
+  animation: film-slide-right 5s ease-in-out infinite alternate;
+}
+
+.portal-film-strip-2 {
+  right: -10rem;
+  top: 48%;
+  transform: rotate(10deg);
+  animation: film-slide-left 5.4s ease-in-out infinite alternate;
+}
+
+.portal-film-strip-3 {
+  left: 12%;
+  bottom: 12%;
+  transform: rotate(4deg);
+  animation: film-slide-right-soft 6s ease-in-out infinite alternate;
+}
+
+@keyframes film-slide-right {
+  from {
+    transform: translateX(-24px) rotate(-12deg);
+  }
+
+  to {
+    transform: translateX(24px) rotate(-10deg);
+  }
+}
+
+@keyframes film-slide-left {
+  from {
+    transform: translateX(24px) rotate(10deg);
+  }
+
+  to {
+    transform: translateX(-24px) rotate(8deg);
+  }
+}
+
+@keyframes film-slide-right-soft {
+  from {
+    transform: translateX(-24px) rotate(4deg);
+  }
+
+  to {
+    transform: translateX(24px) rotate(6deg);
+  }
+}
+
+/* 留言树 loading：叶片漂浮 */
+
+.portal-leaf {
+  position: absolute;
+  color: rgba(220, 255, 230, 0.82);
+  font-size: 1.4rem;
+  text-shadow: 0 0 18px rgba(180, 255, 210, 0.8);
+  pointer-events: none;
+  animation: leaf-fall 5.8s ease-in-out infinite;
+}
+
+.portal-leaf-1 {
+  left: 16%;
+  top: 18%;
+  animation-delay: 0s;
+}
+
+.portal-leaf-2 {
+  left: 36%;
+  top: 8%;
+  animation-delay: 0.9s;
+}
+
+.portal-leaf-3 {
+  right: 24%;
+  top: 20%;
+  animation-delay: 1.6s;
+}
+
+.portal-leaf-4 {
+  right: 12%;
+  top: 10%;
+  animation-delay: 2.3s;
+}
+
+@keyframes leaf-fall {
+  0% {
+    transform: translateY(-10px) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+
+  25% {
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translateY(130px) translateX(38px) rotate(48deg);
+    opacity: 0;
+  }
+}

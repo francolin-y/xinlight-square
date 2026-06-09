@@ -98,32 +98,31 @@ export default function HomePage() {
       loadingVariant="cloud"
       backgroundVariant="plaza"
     >
-      <CheckinToast 
+      <CheckinToast
         title={t.home.checkinToastTitle}
         subtitle={t.home.checkinToastSubtitle}
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
-
+        <div className="rounded-[2rem] border border-white/20 bg-slate-950/25 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-md">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl bg-slate-950/60 p-5">
-              <p className="text-sm text-slate-400">{t.home.daysTogether}</p>
+            <div className="rounded-3xl border border-white/25 bg-white/45 p-5 text-slate-950 shadow-lg backdrop-blur">
+              <p className="text-sm text-slate-700">{t.home.daysTogether}</p>
               <p className="mt-3 text-4xl font-semibold">
                 {getDaysTogether()}
-                <span className="ml-2 text-base text-slate-400">
+                <span className="ml-2 text-base text-slate-700">
                   {t.home.daysUnit}
                 </span>
               </p>
             </div>
 
-            <div className="rounded-3xl bg-slate-950/60 p-5">
-              <p className="text-sm text-slate-400">{t.home.currentEnergy}</p>
+            <div className="rounded-3xl border border-white/25 bg-white/45 p-5 text-slate-950 shadow-lg backdrop-blur">
+              <p className="text-sm text-slate-700">{t.home.currentEnergy}</p>
               <p className="mt-3 text-4xl font-semibold">1314</p>
             </div>
 
-            <div className="flex flex-col justify-between rounded-3xl bg-slate-950/60 p-5">
-              <p className="text-sm text-slate-400">{t.home.goMarket}</p>
+            <div className="flex flex-col justify-between rounded-3xl border border-white/15 bg-slate-950/55 p-5 shadow-lg backdrop-blur">
+              <p className="text-sm text-slate-100">{t.home.goMarket}</p>
               <Link
                 href="/market"
                 className="mt-5 rounded-full bg-white px-5 py-3 text-center text-sm font-medium text-slate-950 transition hover:bg-sky-100"
@@ -134,18 +133,22 @@ export default function HomePage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl border border-emerald-300/20 bg-emerald-300/10 p-5">
-              <p className="text-sm text-emerald-100">{t.home.todayCheckin}</p>
-              <p className="mt-3 text-2xl font-semibold">{t.home.completed}</p>
+            <div className="rounded-3xl border border-emerald-200/30 bg-emerald-300/20 p-5 shadow-lg backdrop-blur">
+              <p className="text-sm text-emerald-50">{t.home.todayCheckin}</p>
+              <p className="mt-3 text-2xl font-semibold text-white">
+                {t.home.completed}
+              </p>
             </div>
 
-            <div className="rounded-3xl border border-amber-300/20 bg-amber-300/10 p-5">
-              <p className="text-sm text-amber-100">{t.home.todayPuzzle}</p>
+            <div className="rounded-3xl border border-amber-200/30 bg-amber-300/20 p-5 shadow-lg backdrop-blur">
+              <p className="text-sm text-amber-50">{t.home.todayPuzzle}</p>
               <div className="mt-3 flex items-center justify-between gap-4">
-                <p className="text-2xl font-semibold">{t.home.incomplete}</p>
+                <p className="text-2xl font-semibold text-white">
+                  {t.home.incomplete}
+                </p>
                 <Link
                   href="/magic"
-                  className="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-slate-950"
+                  className="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-white"
                 >
                   {t.home.startPuzzle}
                 </Link>
@@ -154,17 +157,17 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6 backdrop-blur">
+        <div className="rounded-[2rem] border border-white/20 bg-white/35 p-6 text-slate-950 shadow-2xl shadow-slate-950/20 backdrop-blur-md">
           <div className="mb-5 flex items-end justify-between gap-4">
             <h2 className="text-xl font-semibold">{t.home.calendarTitle}</h2>
-            <p className="text-sm text-slate-400">{monthLabel}</p>
+            <p className="text-sm text-slate-700">{monthLabel}</p>
           </div>
 
           <div className="mb-2 grid grid-cols-7 gap-2">
             {weekdays[lang].map((weekday) => (
               <div
                 key={weekday}
-                className="text-center text-xs font-medium text-slate-400"
+                className="text-center text-xs font-medium text-slate-700"
               >
                 {weekday}
               </div>
@@ -182,10 +185,10 @@ export default function HomePage() {
                   key={item.key}
                   className={[
                     "grid aspect-square place-items-center rounded-2xl text-sm transition",
-            item.checked
-                      ? "bg-sky-200 text-slate-950"
-                      : "bg-white/10 text-slate-400",
-                    item.isToday ? "ring-2 ring-white/70" : "",
+                    item.checked
+                      ? "bg-sky-200 text-slate-950 shadow-sm"
+                      : "bg-white/30 text-slate-700",
+                    item.isToday ? "ring-2 ring-white/80" : "",
                     item.isFuture ? "opacity-40" : "",
                   ].join(" ")}
                 >
