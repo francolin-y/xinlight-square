@@ -70,6 +70,73 @@ a {
   animation: portal-pulse 1.35s ease-in-out infinite;
 }
 
+/* 天空广场首页 loading 背景图 */
+
+.loading-cloud-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  animation: loading-cloud-slow-zoom 2.4s ease-out forwards;
+}
+
+.loading-cloud-center-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.28),
+      rgba(255, 255, 255, 0.12) 24%,
+      transparent 46%
+    );
+}
+
+.loading-cloud-light-drift {
+  position: absolute;
+  left: 50%;
+  top: -20%;
+  z-index: 2;
+  width: 22rem;
+  height: 145%;
+  transform: translateX(-50%) rotate(12deg);
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.32),
+    transparent
+  );
+  filter: blur(22px);
+  opacity: 0.44;
+  animation: loading-cloud-light-drift 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes loading-cloud-slow-zoom {
+  from {
+    transform: scale(1.04);
+  }
+
+  to {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes loading-cloud-light-drift {
+  from {
+    opacity: 0.28;
+    transform: translateX(-56%) rotate(10deg);
+  }
+
+  to {
+    opacity: 0.52;
+    transform: translateX(-46%) rotate(14deg);
+  }
+}
+
 /* 通用中心柔光 */
 
 .portal-orb-glow {
@@ -445,5 +512,414 @@ a {
   100% {
     transform: translateY(130px) translateX(38px) rotate(48deg);
     opacity: 0;
+  }
+}
+
+/* Magic 页面：水晶球星轨 */
+
+.magic-space {
+  position: relative;
+  isolation: isolate;
+}
+
+.magic-space::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(168, 85, 247, 0.22), transparent 34%),
+    radial-gradient(circle at 18% 42%, rgba(236, 72, 153, 0.16), transparent 30%),
+    radial-gradient(circle at 84% 70%, rgba(59, 130, 246, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.52));
+}
+
+.magic-space-panel {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2rem;
+  background: rgba(15, 23, 42, 0.38);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(16px);
+}
+
+.magic-track-panel {
+  position: relative;
+  overflow: hidden;
+  min-height: 42rem;
+  padding: 3rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2.5rem;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.04), transparent 26%),
+    radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.06), transparent 40%),
+  rgba(15, 23, 42, 0.14);
+  box-shadow:
+    inset 0 0 80px rgba(255, 255, 255, 0.04),
+    0 28px 100px rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(18px);
+}
+
+.magic-track-panel::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2rem;
+  width: 32rem;
+  height: 32rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 52px rgba(168, 85, 247, 0.18),
+    inset 0 0 52px rgba(255, 255, 255, 0.06);
+  opacity: 0.62;
+  animation: magic-circle-slow-spin 26s linear infinite;
+  pointer-events: none;
+}
+
+.magic-track-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.48;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(216, 180, 254, 0.72) 0 1px, transparent 2px);
+  background-size:
+    110px 110px,
+    160px 160px;
+  background-position:
+    16% 20%,
+    78% 64%;
+  animation: magic-stars-drift 6s ease-in-out infinite alternate;
+}
+
+.magic-track-line {
+  position: absolute;
+  left: 50%;
+  top: 4rem;
+  bottom: 4rem;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(216, 180, 254, 0.9),
+    rgba(251, 191, 36, 0.72),
+    rgba(147, 197, 253, 0.8),
+    transparent
+  );
+  box-shadow:
+    0 0 22px rgba(216, 180, 254, 0.8),
+    0 0 48px rgba(168, 85, 247, 0.42);
+}
+
+.magic-orb-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.magic-orb-node-left .magic-crystal-orb {
+  grid-column: 2;
+}
+
+.magic-orb-node-left .magic-orb-card {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  text-align: right;
+}
+
+.magic-orb-node-right .magic-crystal-orb {
+  grid-column: 2;
+}
+
+.magic-orb-node-right .magic-orb-card {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.magic-orb-card {
+  width: min(100%, 26rem);
+  padding: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.75rem;
+  background: rgba(15, 23, 42, 0.58);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(16px);
+}
+
+.magic-crystal-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 6.2rem;
+  height: 6.2rem;
+  border: 0;
+  border-radius: 9999px;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.95), transparent 0 13%),
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.42), transparent 0 28%),
+    radial-gradient(circle at 58% 62%, rgba(192, 132, 252, 0.72), rgba(88, 28, 135, 0.66) 48%, rgba(15, 23, 42, 0.86) 74%);
+  box-shadow:
+    0 0 24px rgba(216, 180, 254, 0.78),
+    0 0 60px rgba(168, 85, 247, 0.48),
+    inset 0 0 24px rgba(255, 255, 255, 0.42);
+  transition:
+    transform 300ms ease,
+    filter 300ms ease,
+    box-shadow 300ms ease;
+  animation: magic-orb-float 4.2s ease-in-out infinite;
+}
+
+.magic-crystal-orb::before {
+  content: "";
+  position: absolute;
+  inset: -0.75rem;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(216, 180, 254, 0.38), transparent 62%);
+  filter: blur(10px);
+  opacity: 0.82;
+  transition: opacity 300ms ease;
+}
+
+.magic-crystal-orb::after {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.46), transparent 34%),
+    radial-gradient(circle at 62% 68%, rgba(251, 191, 36, 0.28), transparent 34%);
+  opacity: 0.72;
+  mix-blend-mode: screen;
+}
+
+.magic-crystal-orb:hover {
+  transform: translateY(-4px) scale(1.08);
+  filter: saturate(1.2) brightness(1.18);
+  box-shadow:
+    0 0 30px rgba(255, 255, 255, 0.7),
+    0 0 76px rgba(216, 180, 254, 0.68),
+    0 0 118px rgba(168, 85, 247, 0.42),
+    inset 0 0 28px rgba(255, 255, 255, 0.5);
+}
+
+.magic-crystal-orb-core {
+  position: relative;
+  z-index: 1;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.92),
+    0 0 36px rgba(251, 191, 36, 0.62);
+}
+
+.magic-crystal-orb-new {
+  box-shadow:
+    0 0 30px rgba(251, 191, 36, 0.72),
+    0 0 70px rgba(216, 180, 254, 0.62),
+    inset 0 0 28px rgba(255, 255, 255, 0.5);
+}
+
+.magic-crystal-orb-solved {
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.95), transparent 0 13%),
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.42), transparent 0 28%),
+    radial-gradient(circle at 58% 62%, rgba(253, 230, 138, 0.82), rgba(180, 83, 9, 0.54) 48%, rgba(15, 23, 42, 0.82) 74%);
+  box-shadow:
+    0 0 30px rgba(251, 191, 36, 0.72),
+    0 0 76px rgba(253, 224, 71, 0.38),
+    inset 0 0 30px rgba(255, 255, 255, 0.48);
+}
+
+.magic-crystal-orb-locked {
+  cursor: not-allowed;
+  filter: grayscale(0.8) brightness(0.72);
+  opacity: 0.68;
+  box-shadow:
+    0 0 18px rgba(148, 163, 184, 0.28),
+    inset 0 0 22px rgba(255, 255, 255, 0.16);
+}
+
+.magic-crystal-orb-locked:hover {
+  transform: none;
+  filter: grayscale(0.8) brightness(0.72);
+}
+
+.magic-pagination {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2rem;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(14px);
+}
+
+.magic-pagination-button {
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.75rem 1.25rem;
+  color: white;
+  transition:
+    background 200ms ease,
+    opacity 200ms ease;
+}
+
+.magic-pagination-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.magic-pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.magic-overlay-orb {
+  position: absolute;
+  width: min(78vw, 34rem);
+  height: min(78vw, 34rem);
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.9), transparent 0 12%),
+    radial-gradient(circle at 50% 50%, rgba(216, 180, 254, 0.52), rgba(88, 28, 135, 0.36) 42%, transparent 70%);
+  box-shadow:
+    0 0 80px rgba(216, 180, 254, 0.62),
+    0 0 150px rgba(168, 85, 247, 0.42),
+    inset 0 0 60px rgba(255, 255, 255, 0.2);
+  filter: blur(0.2px);
+  animation: magic-overlay-orb-pulse 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes magic-circle-slow-spin {
+  from {
+    transform: translateX(-50%) rotate(0deg);
+  }
+
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+
+@keyframes magic-stars-drift {
+  from {
+    transform: translateY(0);
+    opacity: 0.36;
+  }
+
+  to {
+    transform: translateY(-18px);
+    opacity: 0.7;
+  }
+}
+
+@keyframes magic-orb-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes magic-overlay-orb-pulse {
+  from {
+    transform: scale(0.96);
+    opacity: 0.72;
+  }
+
+  to {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .magic-space-panel {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .magic-track-panel {
+    padding: 2rem 1rem;
+  }
+
+  .magic-track-line {
+    left: 3.1rem;
+  }
+
+  .magic-orb-node {
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .magic-orb-node-left .magic-crystal-orb,
+  .magic-orb-node-right .magic-crystal-orb {
+    grid-column: 1;
+  }
+
+  .magic-orb-node-left .magic-orb-card,
+  .magic-orb-node-right .magic-orb-card {
+    grid-column: 2;
+    justify-self: stretch;
+    text-align: left;
+  }
+
+  .magic-crystal-orb {
+    width: 4.8rem;
+    height: 4.8rem;
+  }
+
+  .magic-pagination {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Magic 页面主背景：固定视口背景 */
+
+.magic-page-background {
+  background-color: #020617;
+}
+
+.magic-page-background::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("/backgrounds/magic/magic-main-mobile.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+}
+
+@media (min-width: 768px) {
+  .magic-page-background::before {
+    background-image: url("/backgrounds/magic/magic-main-desktop.png");
+    background-position: center top;
+    background-size: 100vw auto;
   }
 }

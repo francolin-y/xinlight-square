@@ -4,7 +4,7 @@ import { LanguageProvider } from "@/components/LanguageProvider";
 import { Navbar } from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "Stella Square",
+  title: "Stella World",
   description: "An interactive starlight website.",
 };
 

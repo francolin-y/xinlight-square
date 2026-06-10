@@ -22,6 +22,8 @@ export function LoadingPortal({
   const [textIndex, setTextIndex] = useState(0);
 
   const loadingTexts = [title, subtitle];
+  const isCloudLoading = variant === "cloud";
+  const isMagicLoading = variant === "magic";
 
   useEffect(() => {
     const textTimer = window.setInterval(() => {
@@ -48,7 +50,7 @@ export function LoadingPortal({
   }
 
   const variantClass: Record<LoadingVariant, string> = {
-    cloud: "from-sky-200 via-indigo-200 to-violet-300",
+    cloud: "from-sky-100 via-sky-200 to-blue-300",
     magic: "from-violet-950 via-fuchsia-800 to-indigo-950",
     heart: "from-rose-300 via-pink-400 to-purple-600",
     market: "from-amber-200 via-orange-300 to-pink-400",
@@ -57,12 +59,12 @@ export function LoadingPortal({
   };
 
   const icon: Record<LoadingVariant, string> = {
-    cloud: "☁",
-    magic: "✦",
-    heart: "♡",
-    market: "✧",
-    studio: "▣",
-    tree: "葉",
+    cloud: "☁️",
+    magic: "🔮",
+    heart: "❤️",
+    market: "🌟",
+    studio: "📷",
+    tree: "🍃",
   };
 
   return (
@@ -73,19 +75,85 @@ export function LoadingPortal({
         visible ? "opacity-100" : "opacity-0",
       ].join(" ")}
     >
-      <PortalAtmosphere variant={variant} />
+      
+      {isCloudLoading ? (
+        <>
+          <picture className="absolute inset-0 z-0">
+            <source
+              media="(min-width: 768px)"
+              srcSet="/backgrounds/loading/home-cloud-desktop.png"
+            />
+            <img
+              src="/backgrounds/loading/home-cloud-mobile.png"
+              alt=""
+              aria-hidden="true"
+              className="loading-cloud-image"
+            />
+          </picture>
 
-      <div className="pointer-events-none absolute inset-0 bg-white/10" />
+          <div className="absolute inset-0 z-[1] bg-white/10" />
+          <div className="absolute inset-0 z-[1] bg-gradient-to-b from-white/20 via-sky-100/10 to-blue-950/20" />
+          <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(15,23,42,0.22),transparent_38%)]" />
+          <div className="loading-cloud-center-glow" />
+          <div className="loading-cloud-light-drift" />
+        </>
+      ) : isMagicLoading ? (
+         <>
+          <picture className="absolute inset-0 z-0">
+            <source
+              media="(min-width: 768px)"
+              srcSet="/backgrounds/loading/magic-circle-desktop.png"
+            />
+            <img
+              src="/backgrounds/loading/magic-circle-mobile.png"
+              alt=""
+              aria-hidden="true"
+              className="loading-magic-image"
+            />
+          </picture>
+
+          <div className="absolute inset-0 z-[1] bg-slate-950/20" />
+          <div className="absolute inset-0 z-[1] bg-gradient-to-b from-violet-950/20 via-slate-950/10 to-slate-950/55" />
+          <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_36%)]" />
+          <div className="loading-magic-center-glow" />
+          <div className="loading-magic-vignette" />
+
+          <div className="relative z-[2]">
+            <PortalAtmosphere variant={variant} />
+          </div>
+        </>
+      ) : (
+        <>
+          <PortalAtmosphere variant={variant} />
+          <div className="pointer-events-none absolute inset-0 bg-white/10" />
+        </>
+      )}
 
       <div className="relative z-10 px-6 text-center text-white">
-        <div className="mx-auto mb-8 grid h-20 w-20 animate-portal-pulse place-items-center rounded-full bg-white/20 text-3xl shadow-[0_0_48px_rgba(255,255,255,0.45)] ring-1 ring-white/40 backdrop-blur-md">
+        <div
+          className={[
+            "mx-auto mb-8 grid h-20 w-20 animate-portal-pulse place-items-center rounded-full text-3xl ring-1 backdrop-blur-md",
+            isCloudLoading
+              ? "bg-white/30 text-white shadow-[0_0_56px_rgba(255,255,255,0.58)] ring-white/50"
+              : isMagicLoading
+                ? "bg-violet-100/20 text-white shadow-[0_0_64px_rgba(216,180,254,0.72)] ring-violet-100/45"
+                : "bg-white/20 shadow-[0_0_48px_rgba(255,255,255,0.45)] ring-white/40",
+          ].join(" ")}
+        >
           {icon[variant]}
         </div>
 
         <div className="relative h-24 overflow-hidden">
           <h1
             key={loadingTexts[textIndex]}
-            className="animate-loading-text text-3xl font-semibold tracking-wide drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)] md:text-5xl"
+            className={[
+              "animate-loading-text text-3xl font-semibold tracking-wide md:text-5xl",
+              isCloudLoading
+                ? "drop-shadow-[0_3px_20px_rgba(15,23,42,0.55)]"
+                : isMagicLoading
+                  ? "drop-shadow-[0_2px_12px_rgba(76,29,149,0.75)]"
+                  : "drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)]",
+            ].join(" ")}
           >
             {loadingTexts[textIndex]}
           </h1>
@@ -111,16 +179,7 @@ export function LoadingPortal({
 
 function PortalAtmosphere({ variant }: { variant: LoadingVariant }) {
   if (variant === "cloud") {
-    return (
-      <>
-        <div className="portal-sun-glow" />
-        <div className="portal-cloud portal-cloud-1" />
-        <div className="portal-cloud portal-cloud-2" />
-        <div className="portal-cloud portal-cloud-3" />
-        <div className="portal-cloud portal-cloud-4" />
-        <div className="portal-light-beam" />
-      </>
-    );
+    return null;
   }
 
   if (variant === "magic") {

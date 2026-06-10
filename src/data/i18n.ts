@@ -29,7 +29,7 @@ export const navItems = [
 
 export const copy = {
   cn: {
-    siteName: "Stella Square",
+    siteName: "Stella Planet",
     nav: {
       home: "天空广场",
       magic: "魔法空间",
@@ -65,7 +65,7 @@ export const copy = {
         "谜题陆续上线中，答对有惊喜哦！",
       availableAt: "上线时间",
       reward: "奖励",
-      openBox: "打开魔术盒",
+      openBox: "查看水晶球",
       unsolved: "未解开",
       solved: "已解开",
       locked: "尚未上线",
@@ -106,7 +106,7 @@ export const copy = {
     },
   },
   en: {
-    siteName: "Stella Square",
+    siteName: "Stella Planet",
     nav: {
       home: "Skyland Square",
       magic: "Magic Room",
@@ -142,7 +142,7 @@ export const copy = {
         "Time-released puzzles will appear here. Correct answers can grant starlight value, messages, and unlocked photos.",
       availableAt: "Available at",
       reward: "Reward",
-      openBox: "Open magic box",
+      openBox: "View the crystal ball",
       unsolved: "Unsolved",
       solved: "Solved",
       locked: "Not available yet",

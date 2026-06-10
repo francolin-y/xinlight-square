@@ -1,17 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { CheckinToast } from "@/components/CheckinToast";
 import { useLanguage } from "@/components/LanguageProvider";
 
-const START_DATE = new Date("2025-04-19");
+const START_DATE = {
+  year: 2025,
+  month: 4,
+  day: 19,
+};
+
+function getLocalDateOnly(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
 
 function getDaysTogether() {
-  const now = new Date();
-  const diff = now.getTime() - START_DATE.getTime();
+  const startDate = new Date(
+    START_DATE.year,
+    START_DATE.month - 1,
+    START_DATE.day
+  );
 
-  return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)) + 1);
+  const today = getLocalDateOnly(new Date());
+
+  const diff = today.getTime() - startDate.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+
+  return Math.max(1, days);
 }
 
 type CalendarCell = {
@@ -86,8 +103,18 @@ function getCurrentMonthLabel(lang: "cn" | "en") {
 
 export default function HomePage() {
   const { lang, t } = useLanguage();
+  const [daysTogether, setDaysTogether] = useState(getDaysTogether());
+
   const monthCalendar = getCurrentMonthCalendar();
   const monthLabel = getCurrentMonthLabel(lang);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setDaysTogether(getDaysTogether());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <PageShell
@@ -109,7 +136,7 @@ export default function HomePage() {
             <div className="rounded-3xl border border-white/25 bg-white/45 p-5 text-slate-950 shadow-lg backdrop-blur">
               <p className="text-sm text-slate-700">{t.home.daysTogether}</p>
               <p className="mt-3 text-4xl font-semibold">
-                {getDaysTogether()}
+                {daysTogether}
                 <span className="ml-2 text-base text-slate-700">
                   {t.home.daysUnit}
                 </span>

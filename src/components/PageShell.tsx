@@ -11,7 +11,7 @@ type PageShellProps = {
   loadingSubtitle: string;
   loadingVariant?: LoadingVariant;
   loadingDurationMs?: number;
-  backgroundVariant?: "default" | "plaza";
+  backgroundVariant?: "default" | "plaza" | "magic";
   children?: React.ReactNode;
 };
 
@@ -26,6 +26,7 @@ export function PageShell({
   children,
 }: PageShellProps) {
   const isPlazaBackground = backgroundVariant === "plaza";
+  const isMagicBackground = backgroundVariant === "magic";
 
   return (
     <>
@@ -38,10 +39,12 @@ export function PageShell({
 
       <main
         className={[
-          "relative min-h-screen overflow-hidden text-white",
-          isPlazaBackground
-            ? "bg-[url('/backgrounds/home_mobile_skyland.png')] bg-cover bg-center bg-no-repeat md:bg-[url('/backgrounds/home_desktop_skyland.png')]"
-            : "bg-slate-950",
+            "relative min-h-screen overflow-hidden text-white",
+            isPlazaBackground
+                ? "bg-[url('/backgrounds/home_mobile_skyland.png')] bg-cover bg-center bg-no-repeat md:bg-[url('/backgrounds/home_desktop_skyland.png')]"
+                : isMagicBackground
+                    ? "magic-page-background"
+                    : "bg-slate-950",
         ].join(" ")}
       >
         {isPlazaBackground ? (
@@ -50,6 +53,12 @@ export function PageShell({
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/5 to-slate-950/35" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_42%)]" />
           </>
+        ) : isMagicBackground ? (
+          <>
+            <div className="fixed inset-0 z-[1] bg-slate-950/18" />
+            <div className="fixed inset-0 z-[1] bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/60" />
+            <div className="fixed inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(216,180,254,0.08),transparent_46%)]" />
+          </>   
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.35),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.28),transparent_35%)]" />
         )}
@@ -60,12 +69,14 @@ export function PageShell({
               className={[
                 "mb-10 max-w-3xl",
                 isPlazaBackground
-                  ? "rounded-[2rem] border border-white/20 bg-slate-950/20 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-[2px] md:p-8"
-                  : "",
+                    ? "rounded-[2rem] border border-white/20 bg-slate-950/20 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-[2px] md:p-8"
+                    : isMagicBackground
+                        ? "rounded-[2rem] border border-white/15 bg-slate-950/35 p-6 shadow-2xl shadow-violet-950/25 backdrop-blur-md md:p-8"
+                        : "",
               ].join(" ")}
             >
               <p className="mb-4 text-sm uppercase tracking-[0.35em] text-sky-200 drop-shadow">
-                Stella Square
+                Stella Planet
               </p>
 
               <h1 className="text-4xl font-semibold tracking-tight drop-shadow-[0_3px_18px_rgba(0,0,0,0.45)] md:text-6xl">
