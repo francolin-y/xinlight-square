@@ -74,7 +74,7 @@ export function LoadingPortal({
   const icon: Record<LoadingVariant, string> = {
     cloud: "☁️",
     magic: "🔮",
-    heart: "❤️",
+    heart: "💗",
     market: "🌟",
     studio: "📷",
     tree: "🍃",
