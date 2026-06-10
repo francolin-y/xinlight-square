@@ -91,6 +91,7 @@ export default function MarketPage() {
       loadingTitle={t.market.loadingTitle}
       loadingSubtitle={t.market.loadingSubtitle}
       loadingVariant="market"
+      fontVariant="market"
     >
       <section className="mb-6 rounded-[2rem] border border-white/10 bg-amber-200/10 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-md">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -98,7 +99,7 @@ export default function MarketPage() {
             <p className="text-sm uppercase tracking-[0.28em] text-amber-100">
               Market
             </p>
-            <h2 className="mt-3 text-3xl font-semibold">{page.shelfTitle}</h2>
+            <h2 className="mt-3 font-market-accent text-3xl font-semibold">{page.shelfTitle}</h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
               {page.shelfIntro}
             </p>
@@ -167,7 +168,7 @@ export default function MarketPage() {
                 <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/35 p-4">
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-slate-300">{page.priceLabel}</span>
-                    <span className="font-semibold text-amber-200">
+                    <span className="font-market-accent font-semibold text-amber-200">
                       {page.price}
                     </span>
                   </div>

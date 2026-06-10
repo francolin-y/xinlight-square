@@ -55,6 +55,7 @@ export default function EnergyPage() {
       loadingTitle={t.energy.loadingTitle}
       loadingSubtitle={t.energy.loadingSubtitle}
       loadingVariant="heart"
+      fontVariant="heart"
     >
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-rose-300/15 p-6 shadow-2xl shadow-rose-950/20 backdrop-blur-md">
@@ -79,12 +80,12 @@ export default function EnergyPage() {
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                 <p className="text-sm text-rose-100">{page.todayGain}</p>
-                <p className="mt-3 text-3xl font-semibold">+{todayGain}</p>
+                <p className="mt-3 font-heart-accent text-3xl font-semibold">+{todayGain}</p>
               </div>
 
               <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                 <p className="text-sm text-rose-100">{page.chargingStatus}</p>
-                <p className="mt-3 text-3xl font-semibold">Stable</p>
+                <p className="mt-3 font-market-accent text-3xl font-semibold">Stable</p>
               </div>
             </div>
           </div>

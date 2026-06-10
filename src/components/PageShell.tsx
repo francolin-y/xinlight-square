@@ -4,6 +4,8 @@ import { LoadingPortal } from "./LoadingPortal";
 
 type LoadingVariant = "cloud" | "magic" | "heart" | "market" | "studio" | "tree";
 
+type FontVariant = "plaza" | "magic" | "heart" | "market" | "studio" | "tree";
+
 type PageShellProps = {
   title: string;
   intro: string;
@@ -12,6 +14,7 @@ type PageShellProps = {
   loadingVariant?: LoadingVariant;
   loadingDurationMs?: number;
   backgroundVariant?: "default" | "plaza" | "magic";
+  fontVariant?: FontVariant;
   children?: React.ReactNode;
 };
 
@@ -23,23 +26,33 @@ export function PageShell({
   loadingVariant = "cloud",
   loadingDurationMs = 1800,
   backgroundVariant = "default",
+  fontVariant = "plaza",
   children,
 }: PageShellProps) {
   const isPlazaBackground = backgroundVariant === "plaza";
   const isMagicBackground = backgroundVariant === "magic";
-
+  const fontClass: Record<FontVariant, string> = {
+    plaza: "font-plaza",
+    magic: "font-magic",
+    heart: "font-heart",
+    market: "font-market",
+    studio: "font-studio",
+    tree: "font-tree",
+  };
   return (
     <>
       <LoadingPortal
         title={loadingTitle}
         subtitle={loadingSubtitle}
         variant={loadingVariant}
+        fontVariant={fontVariant}
         durationMs={loadingDurationMs}
       />
 
       <main
         className={[
             "relative min-h-screen overflow-hidden text-white",
+            fontClass[fontVariant],
             isPlazaBackground
                 ? "bg-[url('/backgrounds/home_mobile_skyland.png')] bg-cover bg-center bg-no-repeat md:bg-[url('/backgrounds/home_desktop_skyland.png')]"
                 : isMagicBackground

@@ -923,3 +923,76 @@ a {
     background-size: 100vw auto;
   }
 }
+
+.font-plaza {
+  font-family:
+    var(--font-plaza-cn),
+    var(--font-plaza),
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans SC",
+    sans-serif;
+}
+
+.font-magic {
+  font-family:
+    var(--font-magic-cn),
+    var(--font-magic),
+    "Songti SC",
+    "STSong",
+    "Noto Serif SC",
+    serif;
+}
+
+.font-heart {
+  font-family:
+    var(--font-heart-cn),
+    var(--font-heart),
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans SC",
+    cursive;
+}
+
+.font-market {
+  font-family:
+    var(--font-market-cn),
+    var(--font-market),
+    "Songti SC",
+    "STSong",
+    "Noto Serif SC",
+    serif;
+}
+
+.font-studio {
+  font-family:
+    var(--font-studio-cn),
+    var(--font-studio),
+    "PingFang SC",
+    "Microsoft YaHei",
+    monospace;
+}
+
+.font-tree {
+  font-family:
+    var(--font-tree-cn),
+    var(--font-tree),
+    "Songti SC",
+    "STSong",
+    "Noto Serif SC",
+    serif;
+}
+
+.font-heart-accent {
+  font-family:
+    var(--font-heart),
+    var(--font-heart-cn),
+    cursive;
+}
+
+.font-market-accent {
+  font-family:
+    var(--font-market),
+    var(--font-market-cn),
+    serif;
+}

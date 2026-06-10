@@ -82,6 +82,7 @@ export default function TreePage() {
       loadingTitle={t.tree.loadingTitle}
       loadingSubtitle={t.tree.loadingSubtitle}
       loadingVariant="tree"
+      fontVariant="tree"
     >
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-emerald-200/10 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur-md">

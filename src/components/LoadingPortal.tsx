@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 
 type LoadingVariant = "cloud" | "magic" | "heart" | "market" | "studio" | "tree";
 
+type FontVariant = "plaza" | "magic" | "heart" | "market" | "studio" | "tree";
+
 type LoadingPortalProps = {
   title: string;
   subtitle: string;
   variant?: LoadingVariant;
+  fontVariant?: FontVariant;
   durationMs?: number;
 };
 
@@ -15,6 +18,7 @@ export function LoadingPortal({
   title,
   subtitle,
   variant = "cloud",
+  fontVariant = "plaza",
   durationMs = 1800,
 }: LoadingPortalProps) {
   const [mounted, setMounted] = useState(true);
@@ -58,6 +62,15 @@ export function LoadingPortal({
     tree: "from-emerald-200 via-teal-400 to-slate-800",
   };
 
+  const fontClass: Record<FontVariant, string> = {
+  plaza: "font-plaza",
+  magic: "font-magic",
+  heart: "font-heart",
+  market: "font-market",
+  studio: "font-studio",
+  tree: "font-tree",
+  };
+
   const icon: Record<LoadingVariant, string> = {
     cloud: "☁️",
     magic: "🔮",
@@ -72,6 +85,7 @@ export function LoadingPortal({
       className={[
         "fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-gradient-to-br transition-opacity duration-500",
         variantClass[variant],
+        fontClass[fontVariant],
         visible ? "opacity-100" : "opacity-0",
       ].join(" ")}
     >

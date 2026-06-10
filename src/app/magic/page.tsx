@@ -453,6 +453,7 @@ export default function MagicPage() {
       loadingSubtitle={t.magic.loadingSubtitle}
       loadingVariant="magic"
       backgroundVariant="magic"
+      fontVariant="magic"
     >
       <div className="magic-space">
         <div className="magic-space-panel">
