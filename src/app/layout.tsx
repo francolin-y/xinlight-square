@@ -50,21 +50,21 @@ const pacifico = Pacifico({
 const notoSerifSC = Noto_Serif_SC({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-market-cn",
+  variable: "--font-studio-cn",
   display: "swap",
 });
 
 const bungee = Bungee({
   weight: "400",
   subsets: ["latin"],
-  variable: "--font-market",
+  variable: "--font-studio",
   display: "swap",
 });
 
 const zcoolQingKeHuangYou = ZCOOL_QingKe_HuangYou({
   weight: "400",
   subsets: ["latin"],
-  variable: "--font-studio-cn",
+  variable: "--font-market-cn",
   display: "swap",
 });
 
@@ -99,14 +99,14 @@ const quicksand = Quicksand({
 const baloo = Baloo_2({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-market",
+  variable: "--font-studio",
   display: "swap",
 });
 
 const spaceMono = Space_Mono({
   subsets: ["latin"],
   weight: ["400", "700"],
-  variable: "--font-studio",
+  variable: "--font-market",
   display: "swap",
 });
 

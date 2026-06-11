@@ -912,15 +912,15 @@ a {
   pointer-events: none;
   background-image: url("/backgrounds/magic/magic-main-mobile.png");
   background-repeat: no-repeat;
-  background-position: center top;
+  background-position: center center;
   background-size: cover;
 }
 
 @media (min-width: 768px) {
   .magic-page-background::before {
     background-image: url("/backgrounds/magic/magic-main-desktop.png");
-    background-position: center top;
-    background-size: 100vw auto;
+    background-position: center center;
+    background-size: cover;
   }
 }
 
