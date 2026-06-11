@@ -28,6 +28,7 @@ export function LoadingPortal({
   const loadingTexts = [title, subtitle];
   const isCloudLoading = variant === "cloud";
   const isMagicLoading = variant === "magic";
+  const isHeartLoading = variant === "heart";
 
   useEffect(() => {
     const textTimer = window.setInterval(() => {
@@ -112,50 +113,70 @@ export function LoadingPortal({
           <div className="loading-cloud-light-drift" />
         </>
       ) : isMagicLoading ? (
-         <>
-          <picture className="absolute inset-0 z-0">
-            <source
-              media="(min-width: 768px)"
-              srcSet="/backgrounds/loading/magic-circle-desktop.png"
-            />
-            <img
-              src="/backgrounds/loading/magic-circle-mobile.png"
-              alt=""
-              aria-hidden="true"
-              className="loading-magic-image"
-            />
-          </picture>
-
-          <div className="absolute inset-0 z-[1] bg-slate-950/20" />
-          <div className="absolute inset-0 z-[1] bg-gradient-to-b from-violet-950/20 via-slate-950/10 to-slate-950/55" />
-          <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_36%)]" />
-          <div className="loading-magic-center-glow" />
-          <div className="loading-magic-vignette" />
-
-          <div className="relative z-[2]">
-            <PortalAtmosphere variant={variant} />
-          </div>
-        </>
-      ) : (
         <>
+          <picture className="absolute inset-0 z-0">
+          <source
+            media="(min-width: 768px)"
+            srcSet="/backgrounds/loading/magic-circle-desktop.png"
+          />
+          <img
+            src="/backgrounds/loading/magic-circle-mobile.png"
+            alt=""
+            aria-hidden="true"
+            className="loading-magic-image"
+          />
+        </picture>
+
+        <div className="absolute inset-0 z-[1] bg-slate-950/20" />
+        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-violet-950/20 via-slate-950/10 to-slate-950/55" />
+        <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_36%)]" />
+        <div className="loading-magic-center-glow" />
+        <div className="loading-magic-vignette" />
+
+        <div className="relative z-[2]">
           <PortalAtmosphere variant={variant} />
-          <div className="pointer-events-none absolute inset-0 bg-white/10" />
-        </>
-      )}
+        </div>
+      </>
+    ) : isHeartLoading ? (
+      <>
+        <picture className="absolute inset-0 z-0">
+          <source
+            media="(min-width: 768px)"
+            srcSet="/backgrounds/loading/energy-heart-desktop.png"
+          />
+          <img
+            src="/backgrounds/loading/energy-heart-mobile.png"
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-cover"
+          />
+        </picture>
+
+        <div className="absolute inset-0 z-[1] bg-rose-950/10" />
+        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-rose-950/10 via-transparent to-slate-950/35" />
+      </>
+    ) : (
+      <>
+        <PortalAtmosphere variant={variant} />
+        <div className="pointer-events-none absolute inset-0 bg-white/10" />
+      </>
+    )}
 
       <div className="relative z-10 px-6 text-center text-white">
-        <div
-          className={[
-            "mx-auto mb-8 grid h-20 w-20 animate-portal-pulse place-items-center rounded-full text-3xl ring-1 backdrop-blur-md",
-            isCloudLoading
-              ? "bg-white/30 text-white shadow-[0_0_56px_rgba(255,255,255,0.58)] ring-white/50"
-              : isMagicLoading
-                ? "bg-violet-100/20 text-white shadow-[0_0_64px_rgba(216,180,254,0.72)] ring-violet-100/45"
-                : "bg-white/20 shadow-[0_0_48px_rgba(255,255,255,0.45)] ring-white/40",
-          ].join(" ")}
-        >
-          {icon[variant]}
-        </div>
+        {!isHeartLoading && (
+          <div
+            className={[
+              "mx-auto mb-8 grid h-20 w-20 animate-portal-pulse place-items-center rounded-full text-3xl ring-1 backdrop-blur-md",
+              isCloudLoading
+                ? "bg-white/30 text-white shadow-[0_0_56px_rgba(255,255,255,0.58)] ring-white/50"
+                : isMagicLoading
+                  ? "bg-violet-100/20 text-white shadow-[0_0_64px_rgba(216,180,254,0.72)] ring-violet-100/45"
+                  : "bg-white/20 shadow-[0_0_48px_rgba(255,255,255,0.45)] ring-white/40",
+            ].join(" ")}
+          >
+            {icon[variant]}
+          </div>
+        )}
 
         <div className="relative h-24 overflow-hidden">
           <h1

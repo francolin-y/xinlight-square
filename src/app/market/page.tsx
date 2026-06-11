@@ -99,7 +99,7 @@ export default function MarketPage() {
             <p className="text-sm uppercase tracking-[0.28em] text-amber-100">
               Market
             </p>
-            <h2 className="mt-3 font-market-accent text-3xl font-semibold">{page.shelfTitle}</h2>
+            <h2 className="mt-3 text-3xl font-semibold">{page.shelfTitle}</h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
               {page.shelfIntro}
             </p>

@@ -128,6 +128,27 @@ function getChargingStatus(todayGain: number) {
   return "low";
 }
 
+function EnergyBackground() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0">
+      <picture>
+        <source
+          media="(max-width: 768px)"
+          srcSet="/backgrounds/energy/energy-bg-mobile.png"
+        />
+        <img
+          src="/backgrounds/energy/energy-bg-desktop.png"
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      </picture>
+
+      <div className="absolute inset-0 bg-slate-950/25" />
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/55" />
+    </div>
+  );
+}
+
 export default function EnergyPage() {
   const { lang, t } = useLanguage();
   const page = energyCopies[lang];
@@ -154,14 +175,31 @@ export default function EnergyPage() {
 
   return (
     <PageShell
-      title={t.energy.title}
-      intro={t.energy.intro}
+      title=""
+      intro=""
       loadingTitle={t.energy.loadingTitle}
       loadingSubtitle={t.energy.loadingSubtitle}
       loadingVariant="heart"
       fontVariant="heart"
     >
-      <div className="grid gap-6">
+
+      <EnergyBackground />
+      
+      <div className="relative z-10 -mt-18 grid gap-6">
+        <section className="w-full max-w-xl justify-self-start rounded-[2rem] border border-white/15 bg-slate-950/35 p-6 shadow-l shadow-slate-950/25 backdrop-blur-md md:max-w-2xl md:p-10">
+          <p className="font-heart-accent text-sm uppercase tracking-[0.35em] text-pink-100/80">
+            {lang === "cn" ? "STELLA PLANET" : "STELLA PLANET"}
+          </p>
+
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white md:text-6xl">
+            {t.energy.title}
+          </h1>
+
+          <p className="mt-5 max-w-3xl text-base leading-7 text-rose-100/90 md:text-lg">
+            {t.energy.intro}
+          </p>
+        </section>
+
         <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-rose-300/15 p-6 shadow-2xl shadow-rose-950/20 backdrop-blur-md">
             <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-pink-300/30 blur-3xl" />
@@ -185,21 +223,21 @@ export default function EnergyPage() {
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                   <p className="text-sm text-rose-100">{page.todayGain}</p>
-                  <p className="mt-3 font-heart-accent text-3xl font-semibold text-pink-100">
+                  <p className="mt-3 text-3xl font-semibold text-pink-100">
                     +{todayGain}
                   </p>
                 </div>
 
                 <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                   <p className="text-sm text-rose-100">{page.todaySpend}</p>
-                  <p className="mt-3 font-heart-accent text-3xl font-semibold text-rose-100">
+                  <p className="mt-3 text-3xl font-semibold text-rose-100">
                     -{todaySpend}
                   </p>
                 </div>
 
                 <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                   <p className="text-sm text-rose-100">{page.statusLabel}</p>
-                  <p className="mt-3 font-heart-accent text-3xl font-semibold text-white">
+                  <p className="mt-3 text-3xl font-semibold text-white">
                     {page.status[chargingStatus]}
                   </p>
                 </div>
