@@ -35,7 +35,7 @@ export const copy = {
       magic: "魔法空间",
       energy: "爱心充电站",
       market: "快乐批发市场",
-      studio: "情趣切片工坊",
+      studio: "记忆暗房",
       tree: "留言树",
     },
     home: {
@@ -93,10 +93,10 @@ export const copy = {
       intro: "这里可以用星光值兑换一切。",
     },
     studio: {
-      loadingTitle: "记忆切片加载中",
-      loadingSubtitle: "照片与视频正在归档",
-      title: "情趣切片工坊",
-      intro: "这里会保存已上传或通过谜题解锁的照片和视频。",
+      loadingTitle: "正在打开地下暗房",
+      loadingSubtitle: "沿着石阶，去找被封存的记忆",
+      title: "记忆暗房",
+      intro: "这里收藏着我们一步步解锁的心动证据：被日光晒过的照片、藏在暗格里的亲密瞬间、反复播放的短片，还有舍不得删掉的笨蛋花絮。",
     },
     tree: {
       loadingTitle: "留言树正在生长",
@@ -112,7 +112,7 @@ export const copy = {
       magic: "Magic Room",
       energy: "Heart Charging Station",
       market: "Joy Market",
-      studio: "Memory Slice Studio",
+      studio: "Memory Darkroom",
       tree: "Message Tree",
     },
     home: {
@@ -171,11 +171,11 @@ export const copy = {
         "Use starlight value to redeem everything, literally.",
     },
     studio: {
-      loadingTitle: "Loading memory slices",
-      loadingSubtitle: "Photos and videos are being archived",
-      title: "Memory Slice Studio",
+      loadingTitle: "Opening the underground darkroom",
+      loadingSubtitle: "Follow the stone steps to find the sealed memories",
+      title: "Memory Darkroom",
       intro:
-        "Uploaded media and puzzle-unlocked photos or videos will be stored here.",
+        "This is where we keep the heartwarming evidence unlocked step by step: photos touched by sunlight, intimate moments locked in secret compartments, short clips we replay again and again, and silly bloopers we can’t bear to delete.",
     },
     tree: {
       loadingTitle: "The message tree is growing",
