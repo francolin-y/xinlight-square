@@ -30,6 +30,7 @@ export function LoadingPortal({
   const isMagicLoading = variant === "magic";
   const isHeartLoading = variant === "heart";
   const isMarketLoading = variant === "market";
+  const isStudioLoading = variant === "studio";
 
   useEffect(() => {
     const textTimer = window.setInterval(() => {
@@ -78,7 +79,7 @@ export function LoadingPortal({
     magic: "🔮",
     heart: "💗",
     market: "🌟",
-    studio: "📷",
+    studio: "🚪",
     tree: "🍃",
   };
 
@@ -175,6 +176,29 @@ export function LoadingPortal({
           <div className="absolute inset-0 z-[1] bg-gradient-to-b from-amber-50/5 via-transparent to-amber-950/35" />
           <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_42%)]" />
         </>
+      ) : isStudioLoading ? (
+        <>
+          <picture className="absolute inset-0 z-0">
+            <source
+              media="(min-width: 768px)"
+              srcSet="/backgrounds/loading/studio-loading-desktop.png"
+            />
+            <img
+              src="/backgrounds/loading/studio-loading-mobile.png"
+              alt=""
+              aria-hidden="true"
+              className="h-full w-full object-cover object-center"
+            />
+          </picture>
+
+          <div className="absolute inset-0 z-[1] bg-slate-950/20" />
+          <div className="absolute inset-0 z-[1] bg-gradient-to-b from-slate-950/25 via-slate-950/5 to-slate-950/55" />
+          <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.12),transparent_44%)]" />
+
+          <div className="relative z-[2]">
+            <PortalAtmosphere variant={variant} />
+          </div>
+        </>  
       ) : (
         <>
           <PortalAtmosphere variant={variant} />

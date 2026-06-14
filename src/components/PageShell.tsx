@@ -6,7 +6,7 @@ type LoadingVariant = "cloud" | "magic" | "heart" | "market" | "studio" | "tree"
 
 type FontVariant = "plaza" | "magic" | "heart" | "market" | "studio" | "tree";
 
-type BackgroundVariant = "default" | "plaza" | "magic" | "energy";
+type BackgroundVariant = "default" | "plaza" | "magic" | "energy" | "studio";
 
 type PageShellProps = {
   title: string;
@@ -34,6 +34,7 @@ export function PageShell({
   const isPlazaBackground = backgroundVariant === "plaza";
   const isMagicBackground = backgroundVariant === "magic";
   const isEnergyBackground = backgroundVariant === "energy";
+  const isStudioBackground = backgroundVariant === "studio";
   const isMarketPage = fontVariant === "market";
 
   const fontClass: Record<FontVariant, string> = {
@@ -51,9 +52,11 @@ export function PageShell({
       ? "rounded-[2rem] border border-white/25 bg-white/5 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-[1px] ring-1 ring-white/10 md:p-8"
       : isEnergyBackground
         ? "rounded-[2rem] border border-white/20 bg-rose-950/20 p-6 shadow-2xl shadow-rose-950/25 backdrop-blur-[2px] ring-1 ring-white/10 md:p-8"
-        : isMarketPage
-          ? "rounded-[2rem] border border-white/25 bg-white/5 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-[1px] ring-1 ring-white/10 md:p-8"
-          : "";
+        : isStudioBackground
+          ? "rounded-[2rem] border border-amber-100/15 bg-slate-950/45 p-6 shadow-2xl shadow-black/35 backdrop-blur-md ring-1 ring-amber-100/10 md:p-8"
+          : isMarketPage
+            ? "rounded-[2rem] border border-white/25 bg-white/5 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-[1px] ring-1 ring-white/10 md:p-8"
+            : "";
 
   const eyebrowClass = isEnergyBackground
     ? "mb-4 text-sm uppercase tracking-[0.35em] text-pink-100 drop-shadow"
@@ -81,7 +84,9 @@ export function PageShell({
             ? "bg-[url('/backgrounds/home_mobile_skyland.png')] bg-cover bg-center bg-no-repeat md:bg-[url('/backgrounds/home_desktop_skyland.png')]"
             : isMagicBackground
               ? "magic-page-background"
-              : "bg-slate-950",
+              : isStudioBackground
+                ? "studio-page-background"
+                : "bg-slate-950",
         ].join(" ")}
       >
         {isPlazaBackground ? (
@@ -114,6 +119,12 @@ export function PageShell({
             <div className="fixed inset-0 z-[1] bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/55" />
             <div className="fixed inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(244,114,182,0.12),transparent_46%)]" />
           </>
+        ) : isStudioBackground ? (
+          <>
+            <div className="fixed inset-0 z-[1] bg-slate-950/30" />
+            <div className="fixed inset-0 z-[1] bg-gradient-to-b from-slate-950/30 via-slate-950/5 to-slate-950/70" />
+            <div className="fixed inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.08),transparent_48%)]" />
+          </>  
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.35),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.28),transparent_35%)]" />
         )}

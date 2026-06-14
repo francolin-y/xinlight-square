@@ -53,6 +53,7 @@ export default function StudioPage() {
       loadingTitle={t.studio.loadingTitle}
       loadingSubtitle={t.studio.loadingSubtitle}
       loadingVariant="studio"
+      backgroundVariant="studio"
       fontVariant="studio"
     >
       <section className="mb-6 rounded-[2rem] border border-white/10 bg-cyan-200/10 p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur-md">

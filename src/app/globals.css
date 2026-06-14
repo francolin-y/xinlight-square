@@ -996,3 +996,28 @@ a {
     var(--font-market-cn),
     serif;
 }
+/* 情趣切片工坊 mainpage 背景：地下暗房 */
+
+.studio-page-background {
+  background-color: #050505;
+}
+
+.studio-page-background::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("/backgrounds/studio/studio-main-mobile.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+}
+
+@media (min-width: 768px) {
+  .studio-page-background::before {
+    background-image: url("/backgrounds/studio/studio-main-desktop.png");
+    background-position: center center;
+    background-size: cover;
+  }
+}
