@@ -36,6 +36,7 @@ type GiftView = {
   icon: string;
   description: string;
   price: number;
+  imagePath: string | null;
 };
 
 type GiftAdminTask = {
@@ -63,13 +64,15 @@ const marketCopies = {
     empty: "货架暂时为空。",
     errorPrefix: "读取礼物失败",
     requestTitle: "上传礼物需求",
-    requestIntro: "小欣提交后需要管理猿审核；管理猿创建的礼物会直接上架。",
+    requestIntro: "管理猿需要审核小欣同学的需求，审核后即可上架并显示到货时间。",
     requestName: "礼物标题",
     requestNamePlaceholder: "比如：一次夜晚散步计划",
     requestDescription: "礼物说明",
     requestDescriptionPlaceholder: "写下这个礼物会带来什么。",
     requestPrice: "定价",
     requestIcon: "图标",
+    requestImage: "图片地址",
+    requestImagePlaceholder: "管理猿可填写图片 URL，或 /backgrounds/... 路径",
     requestType: "类型",
     requestSubmitHeroine: "提交给管理猿审核",
     requestSubmitAdmin: "直接上架礼物",
@@ -80,9 +83,16 @@ const marketCopies = {
     requestFailed: "提交失败",
     adminTodoTitle: "管理猿待处理礼物需求",
     adminTodoEmpty: "当前没有待处理礼物需求。",
+    adminTodoCount: "待处理",
+    reviewImageLabel: "礼物图片地址",
+    reviewImagePlaceholder: "粘贴图片 URL，或填写 /backgrounds/market/xxx.png",
+    reviewActivate: "补图并上架",
+    reviewActivated: "礼物已上架。",
+    reviewMissingImage: "请先填写礼物图片地址。",
+    reviewFailed: "上架失败",
     heroinePendingTitle: "我的礼物需求通知",
     heroinePendingEmpty: "当前没有待审核礼物需求。",
-    pendingStatus: "等待管理猿审核",
+    pendingStatus: "等待管理猿审核中",
   },
   en: {
     priceLabel: "Price",
@@ -104,6 +114,8 @@ const marketCopies = {
     requestDescriptionPlaceholder: "Describe what this gift unlocks.",
     requestPrice: "Price",
     requestIcon: "Icon",
+    requestImage: "Image URL",
+    requestImagePlaceholder: "Admin can paste an image URL or /backgrounds/... path",
     requestType: "Type",
     requestSubmitHeroine: "Submit for admin review",
     requestSubmitAdmin: "Publish gift directly",
@@ -114,6 +126,13 @@ const marketCopies = {
     requestFailed: "Submission failed",
     adminTodoTitle: "Admin gift requests",
     adminTodoEmpty: "There are no open gift requests.",
+    adminTodoCount: "Open",
+    reviewImageLabel: "Gift image URL",
+    reviewImagePlaceholder: "Paste an image URL or /backgrounds/market/xxx.png",
+    reviewActivate: "Add image and publish",
+    reviewActivated: "Gift published.",
+    reviewMissingImage: "Please enter a gift image URL first.",
+    reviewFailed: "Publishing failed",
     heroinePendingTitle: "My gift request notifications",
     heroinePendingEmpty: "There are no pending gift requests.",
     pendingStatus: "Waiting for admin review",
@@ -147,6 +166,7 @@ function mapGiftRowToView(row: GiftRow, lang: Lang): GiftView {
     icon: row.icon,
     description: lang === "cn" ? row.description_cn : row.description_en,
     price: row.price,
+    imagePath: row.image_path,
   };
 }
 
@@ -186,54 +206,21 @@ export default function MarketPage() {
 
   const [adminTasks, setAdminTasks] = useState<GiftAdminTask[]>([]);
   const [pendingGifts, setPendingGifts] = useState<GiftRow[]>([]);
+  const [imagePathDrafts, setImagePathDrafts] = useState<Record<string, string>>({});
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [reviewingGiftId, setReviewingGiftId] = useState<string | null>(null);
 
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
   const [requestPrice, setRequestPrice] = useState("1");
   const [requestIcon, setRequestIcon] = useState("◆");
+  const [requestImagePath, setRequestImagePath] = useState("");
   const [requestType, setRequestType] = useState<GiftType>("virtual");
   const [requestStatus, setRequestStatus] = useState("");
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   const gifts = giftRows.map((gift) => mapGiftRowToView(gift, currentLang));
   const canUploadGift = role === "admin" || role === "heroine";
-
-  async function loadCurrentProfile() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      setRole(null);
-      setUserId(null);
-      return;
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setRole(null);
-      setUserId(null);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (error) {
-      setRole(null);
-      setUserId(user.id);
-      return;
-    }
-
-    setRole(data.role as ProfileRole);
-    setUserId(user.id);
-  }
 
   async function loadGifts() {
     setIsLoadingGifts(true);
@@ -274,7 +261,7 @@ export default function MarketPage() {
   }
 
   async function loadPendingGifts(currentRole: ProfileRole | null) {
-    if (currentRole !== "heroine") {
+    if (currentRole !== "admin" && currentRole !== "heroine") {
       setPendingGifts([]);
       return;
     }
@@ -287,7 +274,21 @@ export default function MarketPage() {
       .eq("status", "pending_admin")
       .order("submitted_at", { ascending: false });
 
-    setPendingGifts((data ?? []) as GiftRow[]);
+    const nextPendingGifts = (data ?? []) as GiftRow[];
+
+    setPendingGifts(nextPendingGifts);
+
+    setImagePathDrafts((current) => {
+      const nextDrafts = { ...current };
+
+      nextPendingGifts.forEach((gift) => {
+        if (!(gift.id in nextDrafts)) {
+          nextDrafts[gift.id] = gift.image_path ?? "";
+        }
+      });
+
+      return nextDrafts;
+    });
   }
 
   async function reloadRoleBasedPanels(nextRole = role) {
@@ -297,6 +298,7 @@ export default function MarketPage() {
   async function handleSubmitGiftRequest() {
     const trimmedTitle = requestTitle.trim();
     const trimmedDescription = requestDescription.trim();
+    const trimmedImagePath = requestImagePath.trim();
     const parsedPrice = Number(requestPrice);
     const trimmedIcon = requestIcon.trim() || "◆";
 
@@ -325,8 +327,9 @@ export default function MarketPage() {
       gift_type: requestType,
       price: Math.round(parsedPrice),
       icon: trimmedIcon.slice(0, 8),
+      image_path: isAdmin && trimmedImagePath ? trimmedImagePath : null,
       status: nextStatus,
-      sort_order: Date.now(),
+      sort_order: Math.floor(Date.now() / 1000),
     });
 
     if (error) {
@@ -339,9 +342,53 @@ export default function MarketPage() {
     setRequestDescription("");
     setRequestPrice("1");
     setRequestIcon("◆");
+    setRequestImagePath("");
     setRequestType("virtual");
     setRequestStatus(isAdmin ? page.requestSuccessAdmin : page.requestSuccessHeroine);
     setIsSubmittingRequest(false);
+
+    await loadGifts();
+    await reloadRoleBasedPanels(role);
+  }
+
+  async function handleActivateGift(giftId: string) {
+    if (role !== "admin") return;
+
+    const imagePath = imagePathDrafts[giftId]?.trim();
+
+    if (!imagePath) {
+      setReviewStatus(page.reviewMissingImage);
+      return;
+    }
+
+    setReviewingGiftId(giftId);
+
+    const { error: giftError } = await supabase
+      .from("gifts")
+      .update({
+        image_path: imagePath,
+        status: "active",
+        sort_order: Math.floor(Date.now() / 1000),
+      })
+      .eq("id", giftId);
+
+    if (giftError) {
+      setReviewStatus(`${page.reviewFailed}：${giftError.message}`);
+      setReviewingGiftId(null);
+      return;
+    }
+
+    await supabase
+      .from("gift_admin_tasks")
+      .update({
+        status: "done",
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("gift_id", giftId)
+      .eq("status", "open");
+
+    setReviewStatus(page.reviewActivated);
+    setReviewingGiftId(null);
 
     await loadGifts();
     await reloadRoleBasedPanels(role);
@@ -495,6 +542,18 @@ export default function MarketPage() {
               </label>
             </div>
 
+            {role === "admin" ? (
+              <label className="mt-4 grid gap-2">
+                <span className="text-sm text-slate-300">{page.requestImage}</span>
+                <input
+                  value={requestImagePath}
+                  onChange={(event) => setRequestImagePath(event.target.value)}
+                  placeholder={page.requestImagePlaceholder}
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-amber-200/50"
+                />
+              </label>
+            ) : null}
+
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -514,21 +573,70 @@ export default function MarketPage() {
 
         {role === "admin" ? (
           <section className="mb-6 rounded-[2rem] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-md">
-            <h2 className="text-xl font-semibold">{page.adminTodoTitle}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 className="text-xl font-semibold">{page.adminTodoTitle}</h2>
 
-            {adminTasks.length === 0 ? (
+              <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950">
+                {adminTasks.length} {page.adminTodoCount}
+              </span>
+            </div>
+
+            {reviewStatus ? (
+              <p className="mt-3 text-sm text-amber-100">{reviewStatus}</p>
+            ) : null}
+
+            {pendingGifts.length === 0 ? (
               <p className="mt-4 text-sm text-slate-300">{page.adminTodoEmpty}</p>
             ) : (
               <div className="mt-4 grid gap-3">
-                {adminTasks.map((task) => (
+                {pendingGifts.map((gift) => (
                   <div
-                    key={task.id}
+                    key={gift.id}
                     className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4"
                   >
-                    <p className="font-medium text-white">{task.title}</p>
-                    <p className="mt-1 text-xs text-slate-300">
-                      {formatTaskTime(task.created_at, currentLang)} · {task.status}
-                    </p>
+                    <div className="grid gap-4 lg:grid-cols-[1fr_1.3fr_auto] lg:items-end">
+                      <div>
+                        <p className="font-medium text-white">
+                          {currentLang === "cn" ? gift.title_cn : gift.title_en}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-300">
+                          {gift.submitted_at
+                            ? formatTaskTime(gift.submitted_at, currentLang)
+                            : page.pendingStatus}
+                          {" · "}
+                          {gift.price} {page.priceUnit}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-200">
+                          {currentLang === "cn" ? gift.description_cn : gift.description_en}
+                        </p>
+                      </div>
+
+                      <label className="grid gap-2">
+                        <span className="text-sm text-slate-300">
+                          {page.reviewImageLabel}
+                        </span>
+                        <input
+                          value={imagePathDrafts[gift.id] ?? ""}
+                          onChange={(event) =>
+                            setImagePathDrafts((current) => ({
+                              ...current,
+                              [gift.id]: event.target.value,
+                            }))
+                          }
+                          placeholder={page.reviewImagePlaceholder}
+                          className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-amber-200/50"
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => handleActivateGift(gift.id)}
+                        disabled={reviewingGiftId === gift.id}
+                        className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {page.reviewActivate}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -605,17 +713,25 @@ export default function MarketPage() {
                   <div className="pointer-events-none absolute -bottom-24 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-pink-300/15 blur-3xl" />
 
                   <div className="relative">
-                    <div className="mb-5 grid h-44 place-items-center rounded-3xl border border-white/15 bg-gradient-to-br from-white/25 to-white/5 shadow-inner">
-                      <div
-                        className={[
-                          "grid h-24 w-24 place-items-center rounded-[2rem] text-5xl shadow-2xl ring-1 transition duration-300",
-                          isRedeemed
-                            ? "bg-slate-950/40 text-white/40 ring-white/10"
-                            : "bg-white text-amber-600 ring-white/50 group-hover:scale-105",
-                        ].join(" ")}
-                      >
-                        {gift.icon}
-                      </div>
+                    <div className="mb-5 grid h-44 place-items-center overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-white/25 to-white/5 shadow-inner">
+                      {gift.imagePath ? (
+                        <img
+                          src={gift.imagePath}
+                          alt=""
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div
+                          className={[
+                            "grid h-24 w-24 place-items-center rounded-[2rem] text-5xl shadow-2xl ring-1 transition duration-300",
+                            isRedeemed
+                              ? "bg-slate-950/40 text-white/40 ring-white/10"
+                              : "bg-white text-amber-600 ring-white/50 group-hover:scale-105",
+                          ].join(" ")}
+                        >
+                          {gift.icon}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mb-4 flex items-start justify-between gap-4">
