@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useLanguage } from "@/components/LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
 
 const treeCopies = {
   cn: {
@@ -44,39 +45,168 @@ const treeBackgrounds = {
   mobile: "/backgrounds/tree/tree-main-mobile.png",
 };
 
+type ProfileRole = "admin" | "heroine" | "fan" | "guest";
+
 type TreeMessage = {
   id: string;
   text: string;
   fresh?: boolean;
+  createdAt?: string;
+  authorName?: string | null;
+  authorRole?: ProfileRole | null;
 };
+
+function getAuthorLabel(
+  role: ProfileRole | null | undefined,
+  fallbackName: string | null | undefined,
+) {
+  if (role === "admin") return fallbackName || "站长";
+  if (role === "heroine") return fallbackName || "女主人公";
+  if (role === "fan") return fallbackName || "粉丝";
+  return fallbackName || "匿名叶子";
+}
+
+function formatMessageTime(date: string | undefined, lang: "cn" | "en") {
+  if (!date) return "";
+
+  return new Intl.DateTimeFormat(lang === "cn" ? "zh-CN" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
 
 export default function TreePage() {
   const { lang, t } = useLanguage();
   const page = treeCopies[lang];
+  const supabase = createClient();
 
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<TreeMessage[]>(
-    page.messages.map((message, index) => ({
-      id: `seed-${index}`,
-      text: message,
-    })),
-  );
+  const [messages, setMessages] = useState<TreeMessage[]>([]);
+  const [role, setRole] = useState<ProfileRole | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [messageStatus, setMessageStatus] = useState("");
 
-  function plantMessage() {
+  const canPlantMessage = role === "heroine" || role === "admin";
+
+  async function loadCurrentProfile() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setRole(null);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setRole(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (error) {
+      setRole(null);
+      return;
+    }
+
+    setRole(data.role as ProfileRole);
+  }
+
+  async function loadMessages() {
+    setIsLoadingMessages(true);
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("id, content, created_at, author_display_name, author_role")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessageStatus(`读取留言失败：${error.message}`);
+      setMessages([]);
+      setIsLoadingMessages(false);
+      return;
+    }
+
+    setMessages(
+      data.map((message) => ({
+        id: message.id,
+        text: message.content,
+        createdAt: message.created_at,
+        authorName: message.author_display_name,
+        authorRole: message.author_role as ProfileRole | null,
+      })),
+    );
+
+    setMessageStatus("");
+    setIsLoadingMessages(false);
+  }
+
+  useEffect(() => {
+    loadCurrentProfile();
+    loadMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function plantMessage() {
     const trimmedDraft = draft.trim();
 
     if (!trimmedDraft) return;
 
+    const canPlantMessage = role === "heroine" || role === "admin";
+
+    if (!canPlantMessage) {
+      setMessageStatus("目前只有女主人公和管理猿可以留言。");
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setMessageStatus("需要登录女主人公账号。");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({
+        user_id: user.id,
+        content: trimmedDraft,
+      })
+      .select("id, content, created_at, author_display_name, author_role")
+      .single();
+
+    if (error) {
+      setMessageStatus(`种下留言失败：${error.message}`);
+      return;
+    }
+
     setMessages((current) => [
       {
-        id: `message-${Date.now()}`,
-        text: trimmedDraft,
+        id: data.id,
+        text: data.content,
+        createdAt: data.created_at,
+        authorName: data.author_display_name,
+        authorRole: data.author_role as ProfileRole | null,
         fresh: true,
       },
       ...current,
     ]);
 
     setDraft("");
+    setMessageStatus("");
   }
 
   return (
@@ -128,7 +258,7 @@ export default function TreePage() {
             <button
               type="button"
               onClick={plantMessage}
-              disabled={!draft.trim()}
+              disabled={!draft.trim() || !canPlantMessage}
               className={[
                 "mt-4 rounded-full px-5 py-3 text-sm font-medium transition disabled:cursor-not-allowed",
                 draft.trim()
@@ -139,8 +269,14 @@ export default function TreePage() {
               {page.submit}
             </button>
 
-            {!draft.trim() ? (
+            {messageStatus ? (
+              <p className="mt-3 text-sm text-emerald-100/80">{messageStatus}</p>
+            ) : !draft.trim() ? (
               <p className="mt-3 text-sm text-slate-400">{page.emptyHint}</p>
+            ) : role !== "heroine" ? (
+              <p className="mt-3 text-sm text-emerald-100/80">
+                目前只有女主人公和管理猿可以留言。
+              </p>
             ) : null}
           </div>
         </section>
@@ -169,33 +305,46 @@ export default function TreePage() {
               <div className="absolute bottom-0 left-6 top-0 w-px bg-gradient-to-b from-emerald-100/0 via-emerald-100/35 to-emerald-100/0" />
 
               <div className="space-y-3">
-                {messages.map((message, index) => (
-                  <article
-                    key={message.id}
-                    className="relative pl-12"
-                  >
-                    <div className="absolute left-[18px] top-5 h-3 w-3 rounded-full bg-emerald-200 shadow-[0_0_18px_rgba(167,243,208,0.9)]" />
+                {isLoadingMessages ? (
+                  <div className="rounded-3xl border border-white/10 bg-slate-950/45 px-5 py-4 text-slate-300">
+                    正在读取留言……
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="rounded-3xl border border-white/10 bg-slate-950/45 px-5 py-4 text-slate-300">
+                    这棵树还没有真实留言。
+                  </div>
+                ) : (
+                  messages.map((message, index) => (
+                    <article key={message.id} className="relative pl-12">
+                      <div className="absolute left-[18px] top-5 h-3 w-3 rounded-full bg-emerald-200 shadow-[0_0_18px_rgba(167,243,208,0.9)]" />
 
-                    <div
-                      className={[
-                        "rounded-3xl border px-5 py-4 shadow-lg backdrop-blur transition",
-                        message.fresh
-                          ? "border-emerald-200/40 bg-emerald-200/15"
-                          : "border-white/10 bg-slate-950/45",
-                      ].join(" ")}
-                    >
-                      <p className="leading-7 text-slate-100">
-                        {message.text}
-                      </p>
+                      <div
+                        className={[
+                          "rounded-3xl border px-5 py-4 shadow-lg backdrop-blur transition",
+                          message.fresh
+                            ? "border-emerald-200/40 bg-emerald-200/15"
+                            : "border-white/10 bg-slate-950/45",
+                        ].join(" ")}
+                      >
+                        <p className="leading-7 text-slate-100">
+                          {message.text}
+                        </p>
 
-                      <p className="mt-3 text-xs text-emerald-100/80">
-                        {message.fresh
-                          ? page.plantedLabel
-                          : `${page.savedLabel} #${index + 1}`}
-                      </p>
-                    </div>
-                  </article>
-                ))}
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-100/80">
+                          <span>
+                            {getAuthorLabel(message.authorRole, message.authorName)}
+                          </span>
+
+                          <span>
+                            {message.fresh
+                              ? page.plantedLabel
+                              : formatMessageTime(message.createdAt, lang)}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                )}
               </div>
             </div>
           </div>
