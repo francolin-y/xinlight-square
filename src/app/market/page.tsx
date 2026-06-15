@@ -1,80 +1,135 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useLanguage } from "@/components/LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
+
+type Lang = "cn" | "en";
+type ProfileRole = "admin" | "heroine" | "fan" | "guest";
+type GiftType = "virtual" | "physical" | "date_plan";
+type GiftStatus = "available" | "redeemed";
+type DatabaseGiftStatus = "active" | "hidden" | "pending_admin";
+
+type GiftRow = {
+  id: string;
+  slug: string;
+  title_cn: string;
+  title_en: string;
+  description_cn: string;
+  description_en: string;
+  gift_type: GiftType;
+  price: number;
+  icon: string;
+  status: DatabaseGiftStatus;
+  sort_order: number;
+  created_by: string | null;
+  image_path: string | null;
+  submitted_at: string | null;
+};
+
+type GiftView = {
+  id: string;
+  title: string;
+  type: string;
+  status: GiftStatus;
+  icon: string;
+  description: string;
+  price: number;
+};
+
+type GiftAdminTask = {
+  id: string;
+  gift_id: string;
+  created_by: string | null;
+  task_type: "gift_request";
+  status: "open" | "done" | "cancelled";
+  title: string;
+  created_at: string;
+  resolved_at: string | null;
+};
 
 const marketCopies = {
   cn: {
     priceLabel: "价格",
     statusLabel: "状态",
-    price: "1 星光值",
+    priceUnit: "星光值",
     redeem: "兑换",
     redeemed: "已兑换",
     available: "可兑换",
     shelfTitle: "今日快乐货架",
     shelfIntro: "每一份礼物都可以用积攒的星光值兑换。",
-    gifts: [
-      {
-        id: 1,
-        title: "一封手写信",
-        type: "虚拟礼物",
-        status: "available",
-        icon: "✉",
-        description: "兑换后，会收到一封只写给你的手写信。",
-      },
-      {
-        id: 2,
-        title: "一次夜晚散步计划",
-        type: "一次约会",
-        status: "available",
-        icon: "☾",
-        description: "兑换后，解锁一份适合夜晚一起执行的散步计划。",
-      },
-      {
-        id: 3,
-        title: "神秘实物礼物",
-        type: "实物",
-        status: "redeemed",
-        icon: "◆",
-        description: "已经兑换，正在等待送达。",
-      },
-    ],
+    loading: "正在读取快乐货架……",
+    empty: "货架暂时为空。",
+    errorPrefix: "读取礼物失败",
+    requestTitle: "上传礼物需求",
+    requestIntro: "小欣提交后需要管理猿审核；管理猿创建的礼物会直接上架。",
+    requestName: "礼物标题",
+    requestNamePlaceholder: "比如：一次夜晚散步计划",
+    requestDescription: "礼物说明",
+    requestDescriptionPlaceholder: "写下这个礼物会带来什么。",
+    requestPrice: "定价",
+    requestIcon: "图标",
+    requestType: "类型",
+    requestSubmitHeroine: "提交给管理猿审核",
+    requestSubmitAdmin: "直接上架礼物",
+    requestSuccessHeroine: "礼物需求已提交给管理猿审核。",
+    requestSuccessAdmin: "礼物已直接上架。",
+    requestOnly: "只有小欣和管理猿可以上传礼物需求。",
+    requestMissing: "请填写礼物标题和有效定价。",
+    requestFailed: "提交失败",
+    adminTodoTitle: "管理猿待处理礼物需求",
+    adminTodoEmpty: "当前没有待处理礼物需求。",
+    heroinePendingTitle: "我的礼物需求通知",
+    heroinePendingEmpty: "当前没有待审核礼物需求。",
+    pendingStatus: "等待管理猿审核",
   },
   en: {
     priceLabel: "Price",
     statusLabel: "Status",
-    price: "1 starlight value",
+    priceUnit: "starlight value",
     redeem: "Redeem",
     redeemed: "Redeemed",
     available: "Available",
     shelfTitle: "Today’s Happiness Shelf",
     shelfIntro: "Each gift can be redeemed with the starlight value you have collected.",
-    gifts: [
-      {
-        id: 1,
-        title: "A handwritten letter",
-        type: "Virtual gift",
-        status: "available",
-        icon: "✉",
-        description: "Redeem this to receive a handwritten letter made only for you.",
-      },
-      {
-        id: 2,
-        title: "A night walk plan",
-        type: "Date plan",
-        status: "available",
-        icon: "☾",
-        description: "Redeem this to unlock a small night-walk plan to follow together.",
-      },
-      {
-        id: 3,
-        title: "Mystery physical gift",
-        type: "Physical gift",
-        status: "redeemed",
-        icon: "◆",
-        description: "Already redeemed and waiting to be delivered.",
-      },
-    ],
+    loading: "Loading happiness shelf...",
+    empty: "The shelf is empty for now.",
+    errorPrefix: "Failed to load gifts",
+    requestTitle: "Upload a gift request",
+    requestIntro: "Heroine submissions go to admin review first. Admin-created gifts go live directly.",
+    requestName: "Gift title",
+    requestNamePlaceholder: "For example: A night walk plan",
+    requestDescription: "Gift description",
+    requestDescriptionPlaceholder: "Describe what this gift unlocks.",
+    requestPrice: "Price",
+    requestIcon: "Icon",
+    requestType: "Type",
+    requestSubmitHeroine: "Submit for admin review",
+    requestSubmitAdmin: "Publish gift directly",
+    requestSuccessHeroine: "Gift request submitted for admin review.",
+    requestSuccessAdmin: "Gift published directly.",
+    requestOnly: "Only the heroine and admin can upload gift requests.",
+    requestMissing: "Please enter a gift title and a valid price.",
+    requestFailed: "Submission failed",
+    adminTodoTitle: "Admin gift requests",
+    adminTodoEmpty: "There are no open gift requests.",
+    heroinePendingTitle: "My gift request notifications",
+    heroinePendingEmpty: "There are no pending gift requests.",
+    pendingStatus: "Waiting for admin review",
+  },
+};
+
+const giftTypeCopies: Record<Lang, Record<GiftType, string>> = {
+  cn: {
+    virtual: "虚拟礼物",
+    physical: "实物",
+    date_plan: "一次计划",
+  },
+  en: {
+    virtual: "Virtual gift",
+    physical: "Physical gift",
+    date_plan: "A plan",
   },
 };
 
@@ -83,11 +138,252 @@ const marketBackgrounds = {
   mobile: "/backgrounds/market/market-main-mobile.png",
 };
 
-type GiftStatus = "available" | "redeemed";
+function mapGiftRowToView(row: GiftRow, lang: Lang): GiftView {
+  return {
+    id: row.id,
+    title: lang === "cn" ? row.title_cn : row.title_en,
+    type: giftTypeCopies[lang][row.gift_type],
+    status: "available",
+    icon: row.icon,
+    description: lang === "cn" ? row.description_cn : row.description_en,
+    price: row.price,
+  };
+}
+
+function createGiftSlug(title: string) {
+  const normalizedTitle = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+
+  const fallback = normalizedTitle || "gift";
+  return `${fallback}-${Date.now()}`;
+}
+
+function formatTaskTime(date: string, lang: Lang) {
+  return new Intl.DateTimeFormat(lang === "cn" ? "zh-CN" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
 
 export default function MarketPage() {
   const { lang, t } = useLanguage();
-  const page = marketCopies[lang];
+  const currentLang = lang as Lang;
+  const page = marketCopies[currentLang];
+  const supabase = createClient();
+
+  const [role, setRole] = useState<ProfileRole | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const [giftRows, setGiftRows] = useState<GiftRow[]>([]);
+  const [isLoadingGifts, setIsLoadingGifts] = useState(true);
+  const [giftError, setGiftError] = useState("");
+
+  const [adminTasks, setAdminTasks] = useState<GiftAdminTask[]>([]);
+  const [pendingGifts, setPendingGifts] = useState<GiftRow[]>([]);
+
+  const [requestTitle, setRequestTitle] = useState("");
+  const [requestDescription, setRequestDescription] = useState("");
+  const [requestPrice, setRequestPrice] = useState("1");
+  const [requestIcon, setRequestIcon] = useState("◆");
+  const [requestType, setRequestType] = useState<GiftType>("virtual");
+  const [requestStatus, setRequestStatus] = useState("");
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  const gifts = giftRows.map((gift) => mapGiftRowToView(gift, currentLang));
+  const canUploadGift = role === "admin" || role === "heroine";
+
+  async function loadCurrentProfile() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setRole(null);
+      setUserId(null);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setRole(null);
+      setUserId(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (error) {
+      setRole(null);
+      setUserId(user.id);
+      return;
+    }
+
+    setRole(data.role as ProfileRole);
+    setUserId(user.id);
+  }
+
+  async function loadGifts() {
+    setIsLoadingGifts(true);
+
+    const { data, error } = await supabase
+      .from("gifts")
+      .select(
+        "id, slug, title_cn, title_en, description_cn, description_en, gift_type, price, icon, status, sort_order, created_by, image_path, submitted_at",
+      )
+      .eq("status", "active")
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      setGiftError(`${page.errorPrefix}：${error.message}`);
+      setGiftRows([]);
+      setIsLoadingGifts(false);
+      return;
+    }
+
+    setGiftRows((data ?? []) as GiftRow[]);
+    setGiftError("");
+    setIsLoadingGifts(false);
+  }
+
+  async function loadAdminTasks(currentRole: ProfileRole | null) {
+    if (currentRole !== "admin") {
+      setAdminTasks([]);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("gift_admin_tasks")
+      .select("id, gift_id, created_by, task_type, status, title, created_at, resolved_at")
+      .eq("status", "open")
+      .order("created_at", { ascending: false });
+
+    setAdminTasks((data ?? []) as GiftAdminTask[]);
+  }
+
+  async function loadPendingGifts(currentRole: ProfileRole | null) {
+    if (currentRole !== "heroine") {
+      setPendingGifts([]);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("gifts")
+      .select(
+        "id, slug, title_cn, title_en, description_cn, description_en, gift_type, price, icon, status, sort_order, created_by, image_path, submitted_at",
+      )
+      .eq("status", "pending_admin")
+      .order("submitted_at", { ascending: false });
+
+    setPendingGifts((data ?? []) as GiftRow[]);
+  }
+
+  async function reloadRoleBasedPanels(nextRole = role) {
+    await Promise.all([loadAdminTasks(nextRole), loadPendingGifts(nextRole)]);
+  }
+
+  async function handleSubmitGiftRequest() {
+    const trimmedTitle = requestTitle.trim();
+    const trimmedDescription = requestDescription.trim();
+    const parsedPrice = Number(requestPrice);
+    const trimmedIcon = requestIcon.trim() || "◆";
+
+    if (!canUploadGift || !userId) {
+      setRequestStatus(page.requestOnly);
+      return;
+    }
+
+    if (!trimmedTitle || !Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      setRequestStatus(page.requestMissing);
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+
+    const isAdmin = role === "admin";
+    const nextStatus: DatabaseGiftStatus = isAdmin ? "active" : "pending_admin";
+
+    const { error } = await supabase.from("gifts").insert({
+      slug: createGiftSlug(trimmedTitle),
+      created_by: userId,
+      title_cn: trimmedTitle,
+      title_en: trimmedTitle,
+      description_cn: trimmedDescription || trimmedTitle,
+      description_en: trimmedDescription || trimmedTitle,
+      gift_type: requestType,
+      price: Math.round(parsedPrice),
+      icon: trimmedIcon.slice(0, 8),
+      status: nextStatus,
+      sort_order: Date.now(),
+    });
+
+    if (error) {
+      setRequestStatus(`${page.requestFailed}：${error.message}`);
+      setIsSubmittingRequest(false);
+      return;
+    }
+
+    setRequestTitle("");
+    setRequestDescription("");
+    setRequestPrice("1");
+    setRequestIcon("◆");
+    setRequestType("virtual");
+    setRequestStatus(isAdmin ? page.requestSuccessAdmin : page.requestSuccessHeroine);
+    setIsSubmittingRequest(false);
+
+    await loadGifts();
+    await reloadRoleBasedPanels(role);
+  }
+
+  useEffect(() => {
+    async function loadPageData() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      let nextRole: ProfileRole | null = null;
+      let nextUserId: string | null = null;
+
+      if (session) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          nextUserId = user.id;
+
+          const { data } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+          nextRole = (data?.role ?? null) as ProfileRole | null;
+        }
+      }
+
+      setUserId(nextUserId);
+      setRole(nextRole);
+
+      await loadGifts();
+      await Promise.all([loadAdminTasks(nextRole), loadPendingGifts(nextRole)]);
+    }
+
+    loadPageData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <PageShell
@@ -126,98 +422,258 @@ export default function MarketPage() {
             </div>
 
             <div className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg">
-              1314 ✦
+              {gifts.length} ◆
             </div>
           </div>
         </section>
 
-        <div className="grid gap-5 md:grid-cols-3">
-          {page.gifts.map((gift) => {
-            const status = gift.status as GiftStatus;
-            const isRedeemed = status === "redeemed";
+        {canUploadGift ? (
+          <section className="mb-6 rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-md">
+            <div className="mb-5">
+              <p className="text-sm uppercase tracking-[0.28em] text-amber-100">
+                Gift Request
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold">{page.requestTitle}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">
+                {page.requestIntro}
+              </p>
+            </div>
 
-            return (
-              <article
-                key={gift.id}
-                className={[
-                  "group relative overflow-hidden rounded-[2rem] border p-6 shadow-2xl backdrop-blur-md transition duration-300",
-                  isRedeemed
-                    ? "border-white/10 bg-white/5 opacity-75"
-                    : "border-white/15 bg-white/10 hover:-translate-y-1 hover:bg-white/15",
-                ].join(" ")}
+            <div className="grid gap-4 md:grid-cols-[1.2fr_1.2fr_0.6fr_0.5fr_0.8fr]">
+              <label className="grid gap-2">
+                <span className="text-sm text-slate-300">{page.requestName}</span>
+                <input
+                  value={requestTitle}
+                  onChange={(event) => setRequestTitle(event.target.value)}
+                  placeholder={page.requestNamePlaceholder}
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-amber-200/50"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm text-slate-300">
+                  {page.requestDescription}
+                </span>
+                <input
+                  value={requestDescription}
+                  onChange={(event) => setRequestDescription(event.target.value)}
+                  placeholder={page.requestDescriptionPlaceholder}
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-amber-200/50"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm text-slate-300">{page.requestPrice}</span>
+                <input
+                  value={requestPrice}
+                  onChange={(event) => setRequestPrice(event.target.value)}
+                  inputMode="numeric"
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none focus:border-amber-200/50"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm text-slate-300">{page.requestIcon}</span>
+                <input
+                  value={requestIcon}
+                  onChange={(event) => setRequestIcon(event.target.value)}
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none focus:border-amber-200/50"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm text-slate-300">{page.requestType}</span>
+                <select
+                  value={requestType}
+                  onChange={(event) => setRequestType(event.target.value as GiftType)}
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none focus:border-amber-200/50"
+                >
+                  <option value="virtual">{giftTypeCopies[currentLang].virtual}</option>
+                  <option value="date_plan">{giftTypeCopies[currentLang].date_plan}</option>
+                  <option value="physical">{giftTypeCopies[currentLang].physical}</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSubmitGiftRequest}
+                disabled={isSubmittingRequest}
+                className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-amber-200/20 blur-3xl transition group-hover:bg-amber-200/30" />
-                <div className="pointer-events-none absolute -bottom-24 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-pink-300/15 blur-3xl" />
+                {role === "admin" ? page.requestSubmitAdmin : page.requestSubmitHeroine}
+              </button>
 
-                <div className="relative">
-                  <div className="mb-5 grid h-44 place-items-center rounded-3xl border border-white/15 bg-gradient-to-br from-white/25 to-white/5 shadow-inner">
-                    <div
-                      className={[
-                        "grid h-24 w-24 place-items-center rounded-[2rem] text-5xl shadow-2xl ring-1 transition duration-300",
-                        isRedeemed
-                          ? "bg-slate-950/40 text-white/40 ring-white/10"
-                          : "bg-white text-amber-600 ring-white/50 group-hover:scale-105",
-                      ].join(" ")}
-                    >
-                      {gift.icon}
-                    </div>
+              {requestStatus ? (
+                <p className="text-sm text-amber-100">{requestStatus}</p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {role === "admin" ? (
+          <section className="mb-6 rounded-[2rem] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-md">
+            <h2 className="text-xl font-semibold">{page.adminTodoTitle}</h2>
+
+            {adminTasks.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-300">{page.adminTodoEmpty}</p>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {adminTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4"
+                  >
+                    <p className="font-medium text-white">{task.title}</p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      {formatTaskTime(task.created_at, currentLang)} · {task.status}
+                    </p>
                   </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
 
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-2xl font-semibold">{gift.title}</h2>
-                      <p className="mt-2 text-sm text-slate-300">{gift.type}</p>
-                    </div>
+        {role === "heroine" ? (
+          <section className="mb-6 rounded-[2rem] border border-white/10 bg-amber-200/10 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-md">
+            <h2 className="text-xl font-semibold">{page.heroinePendingTitle}</h2>
 
-                    <span
-                      className={[
-                        "rounded-full px-3 py-1 text-xs ring-1",
-                        isRedeemed
-                          ? "bg-white/10 text-white/50 ring-white/10"
-                          : "bg-amber-200/15 text-amber-100 ring-amber-200/25",
-                      ].join(" ")}
-                    >
-                      {isRedeemed ? page.redeemed : page.available}
-                    </span>
-                  </div>
+            {pendingGifts.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-300">
+                {page.heroinePendingEmpty}
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {pendingGifts.map((gift) => (
+                  <div
+                    key={gift.id}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-white">
+                          {currentLang === "cn" ? gift.title_cn : gift.title_en}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-300">
+                          {gift.submitted_at
+                            ? formatTaskTime(gift.submitted_at, currentLang)
+                            : page.pendingStatus}
+                        </p>
+                      </div>
 
-                  <p className="min-h-12 text-sm leading-6 text-slate-200">
-                    {gift.description}
-                  </p>
-
-                  <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/35 p-4">
-                    <div className="flex items-center justify-between gap-4 text-sm">
-                      <span className="text-slate-300">{page.priceLabel}</span>
-                      <span className="font-market-accent font-semibold text-amber-200">
-                        {page.price}
+                      <span className="rounded-full bg-amber-200/15 px-3 py-1 text-xs text-amber-100 ring-1 ring-amber-200/25">
+                        {page.pendingStatus}
                       </span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
 
-                    <div className="mt-3 flex items-center justify-between gap-4 text-sm">
-                      <span className="text-slate-300">{page.statusLabel}</span>
-                      <span className={isRedeemed ? "text-white/50" : "text-sky-200"}>
+        {isLoadingGifts ? (
+          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6 text-sm text-slate-200 shadow-2xl backdrop-blur-md">
+            {page.loading}
+          </div>
+        ) : giftError ? (
+          <div className="rounded-[2rem] border border-rose-200/20 bg-rose-500/10 p-6 text-sm text-rose-100 shadow-2xl backdrop-blur-md">
+            {giftError}
+          </div>
+        ) : gifts.length === 0 ? (
+          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6 text-sm text-slate-200 shadow-2xl backdrop-blur-md">
+            {page.empty}
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-3">
+            {gifts.map((gift) => {
+              const isRedeemed = gift.status === "redeemed";
+
+              return (
+                <article
+                  key={gift.id}
+                  className={[
+                    "group relative overflow-hidden rounded-[2rem] border p-6 shadow-2xl backdrop-blur-md transition duration-300",
+                    isRedeemed
+                      ? "border-white/10 bg-white/5 opacity-75"
+                      : "border-white/15 bg-white/10 hover:-translate-y-1 hover:bg-white/15",
+                  ].join(" ")}
+                >
+                  <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-amber-200/20 blur-3xl transition group-hover:bg-amber-200/30" />
+                  <div className="pointer-events-none absolute -bottom-24 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-pink-300/15 blur-3xl" />
+
+                  <div className="relative">
+                    <div className="mb-5 grid h-44 place-items-center rounded-3xl border border-white/15 bg-gradient-to-br from-white/25 to-white/5 shadow-inner">
+                      <div
+                        className={[
+                          "grid h-24 w-24 place-items-center rounded-[2rem] text-5xl shadow-2xl ring-1 transition duration-300",
+                          isRedeemed
+                            ? "bg-slate-950/40 text-white/40 ring-white/10"
+                            : "bg-white text-amber-600 ring-white/50 group-hover:scale-105",
+                        ].join(" ")}
+                      >
+                        {gift.icon}
+                      </div>
+                    </div>
+
+                    <div className="mb-4 flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-2xl font-semibold">{gift.title}</h2>
+                        <p className="mt-2 text-sm text-slate-300">{gift.type}</p>
+                      </div>
+
+                      <span
+                        className={[
+                          "rounded-full px-3 py-1 text-xs ring-1",
+                          isRedeemed
+                            ? "bg-white/10 text-white/50 ring-white/10"
+                            : "bg-amber-200/15 text-amber-100 ring-amber-200/25",
+                        ].join(" ")}
+                      >
                         {isRedeemed ? page.redeemed : page.available}
                       </span>
                     </div>
-                  </div>
 
-                  <button
-                    type="button"
-                    disabled={isRedeemed}
-                    className={[
-                      "mt-6 w-full rounded-full px-5 py-3 text-sm font-medium transition disabled:cursor-not-allowed",
-                      isRedeemed
-                        ? "bg-white/10 text-white/40"
-                        : "bg-white text-slate-950 hover:bg-amber-100",
-                    ].join(" ")}
-                  >
-                    {isRedeemed ? page.redeemed : page.redeem}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                    <p className="min-h-12 text-sm leading-6 text-slate-200">
+                      {gift.description}
+                    </p>
+
+                    <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/35 p-4">
+                      <div className="flex items-center justify-between gap-4 text-sm">
+                        <span className="text-slate-300">{page.priceLabel}</span>
+                        <span className="font-market-accent font-semibold text-amber-200">
+                          {gift.price} {page.priceUnit}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+                        <span className="text-slate-300">{page.statusLabel}</span>
+                        <span className={isRedeemed ? "text-white/50" : "text-sky-200"}>
+                          {isRedeemed ? page.redeemed : page.available}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isRedeemed || role !== "heroine"}
+                      className={[
+                        "mt-6 w-full rounded-full px-5 py-3 text-sm font-medium transition disabled:cursor-not-allowed",
+                        isRedeemed || role !== "heroine"
+                          ? "bg-white/10 text-white/40"
+                          : "bg-white text-slate-950 hover:bg-amber-100",
+                      ].join(" ")}
+                    >
+                      {isRedeemed ? page.redeemed : page.redeem}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
     </PageShell>
   );
