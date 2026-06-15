@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useLanguage } from "@/components/LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
+
+type Lang = "cn" | "en";
 
 type EnergyBill = {
   id: string;
@@ -14,6 +18,16 @@ type EnergyBill = {
   };
 };
 
+type EnergyTransactionRow = {
+  id: string;
+  amount: number;
+  transaction_type: "gain" | "spend";
+  source: "checkin" | "manual";
+  source_date: string | null;
+  description: string | null;
+  created_at: string;
+};
+
 const energyCopies = {
   cn: {
     standardTitle: "星光值收支标准",
@@ -24,6 +38,8 @@ const energyCopies = {
     todaySpend: "今日已消耗",
     statusLabel: "充能状态",
     emptyBill: "还没有星光值流水",
+    loadingBill: "正在读取星光值流水……",
+    errorPrefix: "读取星光值流水失败",
     status: {
       sufficient: "充足",
       stable: "稳定",
@@ -47,6 +63,8 @@ const energyCopies = {
     todaySpend: "Spent Today",
     statusLabel: "Charging Status",
     emptyBill: "No starlight activity yet",
+    loadingBill: "Loading starlight activity...",
+    errorPrefix: "Failed to load starlight activity",
     status: {
       sufficient: "Sufficient",
       stable: "Stable",
@@ -65,58 +83,91 @@ const energyCopies = {
 
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
 
-function getDemoBills(todayKey: string): EnergyBill[] {
-  return [
-    {
-      id: "daily-checkin",
-      date: todayKey,
-      time: "09:12",
-      amount: 10,
-      label: {
-        cn: "每日签到",
-        en: "Daily check-in",
-      },
-    },
-    {
-      id: "website-click",
-      date: todayKey,
-      time: "10:36",
-      amount: 1,
-      label: {
-        cn: "点击网站",
-        en: "Website click",
-      },
-    },
-    {
-      id: "message-written",
-      date: todayKey,
-      time: "14:20",
-      amount: 10,
-      label: {
-        cn: "写一句留言",
-        en: "Message written",
-      },
-    },
-    {
-      id: "gift-redeemed",
-      date: todayKey,
-      time: "20:18",
-      amount: -1,
-      label: {
-        cn: "兑换礼物",
-        en: "Gift redeemed",
-      },
-    },
-  ];
+function parseDisplayDate(date: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return new Date(`${date}T00:00:00`);
+  }
+
+  return new Date(date);
 }
 
-function getChargingStatus(todayGain: number) {
+function formatTransactionDate(date: string, lang: Lang) {
+  return new Intl.DateTimeFormat(lang === "cn" ? "zh-CN" : "en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(parseDisplayDate(date));
+}
+
+function formatTransactionTime(date: string, lang: Lang) {
+  return new Intl.DateTimeFormat(lang === "cn" ? "zh-CN" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
+
+function getEffectiveAmount(transaction: EnergyTransactionRow) {
+  if (transaction.transaction_type === "spend") {
+    return -Math.abs(transaction.amount);
+  }
+
+  return Math.abs(transaction.amount);
+}
+
+function getTransactionDateKey(transaction: EnergyTransactionRow) {
+  if (transaction.source_date) {
+    return transaction.source_date;
+  }
+
+  return getLocalDateKey(new Date(transaction.created_at));
+}
+
+function getTransactionLabel(transaction: EnergyTransactionRow) {
+  if (transaction.description) {
+    return {
+      cn: transaction.description,
+      en:
+        transaction.source === "checkin"
+          ? "Daily check-in"
+          : transaction.description,
+    };
+  }
+
+  if (transaction.source === "checkin") {
+    return {
+      cn: "每日签到",
+      en: "Daily check-in",
+    };
+  }
+
+  return {
+    cn: "手动调整",
+    en: "Manual adjustment",
+  };
+}
+
+function mapTransactionToBill(
+  transaction: EnergyTransactionRow,
+  lang: Lang,
+): EnergyBill {
+  return {
+    id: transaction.id,
+    date: formatTransactionDate(
+      transaction.source_date ?? transaction.created_at,
+      lang,
+    ),
+    time: formatTransactionTime(transaction.created_at, lang),
+    amount: getEffectiveAmount(transaction),
+    label: getTransactionLabel(transaction),
+  };
+}
+
+function getChargingStatus(todayGain: number): "sufficient" | "stable" | "low" {
   if (todayGain > 50) {
     return "sufficient";
   }
@@ -131,24 +182,76 @@ function getChargingStatus(todayGain: number) {
 export default function EnergyPage() {
   const { lang, t } = useLanguage();
   const page = energyCopies[lang];
+  const supabase = createClient();
+
+  const [transactions, setTransactions] = useState<EnergyTransactionRow[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+  const [transactionError, setTransactionError] = useState("");
 
   const todayKey = getLocalDateKey();
-  const bills = getDemoBills(todayKey);
 
-  const baseEnergy = 1294; // This can be fetched from user data in a real application
+  async function loadEnergyTransactions() {
+    setIsLoadingTransactions(true);
 
-  const totalEnergy =
-    baseEnergy + bills.reduce((sum, bill) => sum + bill.amount, 0);
+    const { data, error } = await supabase
+      .from("energy_transactions")
+      .select(
+        "id, amount, transaction_type, source, source_date, description, created_at",
+      )
+      .order("created_at", { ascending: false });
 
-  const todayGain = bills
-    .filter((bill) => bill.date === todayKey && bill.amount > 0)
-    .reduce((sum, bill) => sum + bill.amount, 0);
+    if (error) {
+      setTransactionError(`${page.errorPrefix}：${error.message}`);
+      setTransactions([]);
+      setIsLoadingTransactions(false);
+      return;
+    }
 
-  const todaySpend = Math.abs(
-    bills
-      .filter((bill) => bill.date === todayKey && bill.amount < 0)
-      .reduce((sum, bill) => sum + bill.amount, 0),
-  );
+    setTransactions((data ?? []) as EnergyTransactionRow[]);
+    setTransactionError("");
+    setIsLoadingTransactions(false);
+  }
+
+  useEffect(() => {
+    loadEnergyTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentEnergy = useMemo(() => {
+    return transactions.reduce((sum, transaction) => {
+      return sum + getEffectiveAmount(transaction);
+    }, 0);
+  }, [transactions]);
+
+  const todayGain = useMemo(() => {
+    return transactions
+      .filter((transaction) => {
+        return (
+          getTransactionDateKey(transaction) === todayKey &&
+          getEffectiveAmount(transaction) > 0
+        );
+      })
+      .reduce((sum, transaction) => sum + getEffectiveAmount(transaction), 0);
+  }, [todayKey, transactions]);
+
+  const todaySpend = useMemo(() => {
+    return Math.abs(
+      transactions
+        .filter((transaction) => {
+          return (
+            getTransactionDateKey(transaction) === todayKey &&
+            getEffectiveAmount(transaction) < 0
+          );
+        })
+        .reduce((sum, transaction) => sum + getEffectiveAmount(transaction), 0),
+    );
+  }, [todayKey, transactions]);
+
+  const bills = useMemo(() => {
+    return transactions.map((transaction) =>
+      mapTransactionToBill(transaction, lang),
+    );
+  }, [lang, transactions]);
 
   const chargingStatus = getChargingStatus(todayGain);
 
@@ -162,9 +265,7 @@ export default function EnergyPage() {
       backgroundVariant="energy"
       fontVariant="heart"
     >
-
       <div className="grid gap-6">
-
         <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-rose-300/15 p-6 shadow-2xl shadow-rose-950/20 backdrop-blur-md">
             <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-pink-300/30 blur-3xl" />
@@ -180,7 +281,7 @@ export default function EnergyPage() {
               </p>
 
               <h2 className="mt-4 text-5xl font-semibold tracking-tight md:text-6xl">
-                {totalEnergy}
+                {isLoadingTransactions ? "..." : currentEnergy}
               </h2>
 
               <p className="mt-2 text-sm text-rose-100">{page.totalEnergy}</p>
@@ -189,21 +290,27 @@ export default function EnergyPage() {
                 <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                   <p className="text-sm text-rose-100">{page.todayGain}</p>
                   <p className="mt-3 text-3xl font-semibold text-pink-100">
-                    +{todayGain}
+                    {isLoadingTransactions ? "..." : `+${todayGain}`}
                   </p>
                 </div>
 
                 <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                   <p className="text-sm text-rose-100">{page.todaySpend}</p>
                   <p className="mt-3 text-3xl font-semibold text-rose-100">
-                    -{todaySpend}
+                    {isLoadingTransactions
+                      ? "..."
+                      : todaySpend > 0
+                        ? `-${todaySpend}`
+                        : "0"}
                   </p>
                 </div>
 
                 <div className="rounded-3xl border border-white/15 bg-white/15 p-5">
                   <p className="text-sm text-rose-100">{page.statusLabel}</p>
                   <p className="mt-3 text-3xl font-semibold text-white">
-                    {page.status[chargingStatus]}
+                    {isLoadingTransactions
+                      ? "..."
+                      : page.status[chargingStatus]}
                   </p>
                 </div>
               </div>
@@ -247,11 +354,19 @@ export default function EnergyPage() {
             </div>
 
             <div className="rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-950">
-              +{todayGain} / -{todaySpend}
+              {isLoadingTransactions ? "..." : `+${todayGain} / -${todaySpend}`}
             </div>
           </div>
 
-          {bills.length > 0 ? (
+          {isLoadingTransactions ? (
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-6 text-sm text-slate-300">
+              {page.loadingBill}
+            </div>
+          ) : transactionError ? (
+            <div className="rounded-2xl border border-rose-200/20 bg-rose-500/10 p-6 text-sm text-rose-100">
+              {transactionError}
+            </div>
+          ) : bills.length > 0 ? (
             <div className="grid gap-3">
               {bills.map((bill) => {
                 const isGain = bill.amount > 0;

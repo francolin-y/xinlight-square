@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { CheckinToast } from "@/components/CheckinToast";
 import { useLanguage } from "@/components/LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
 
 const START_DATE = {
   year: 2025,
@@ -31,6 +32,25 @@ function getDaysTogether() {
   return Math.max(1, days);
 }
 
+function getLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  return {
+    start: getLocalDateKey(new Date(year, month, 1)),
+    end: getLocalDateKey(new Date(year, month + 1, 0)),
+  };
+}
+
 type CalendarCell = {
   key: string;
   day: number | null;
@@ -44,11 +64,49 @@ const weekdays = {
   en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
 };
 
-function getCurrentMonthCalendar(): CalendarCell[] {
+type ProfileRole = "admin" | "heroine" | "fan" | "guest";
+
+type DailyCheckinRow = {
+  checkin_date: string;
+};
+
+type EnergyTransactionRow = {
+  amount: number | null;
+};
+
+const checkinCopies = {
+  cn: {
+    loading: "正在读取",
+    waiting: "等待签到",
+    completed: "今日已签到",
+    locked: "仅小欣可签到",
+    button: "今日签到",
+    alreadyChecked: "今天已经签到过啦。",
+    success: "签到成功，今天也收集到一颗星光。",
+    onlyHeroine: "目前只有女主角可以签到哦。",
+    signInRequired: "请先登录小欣的账号。",
+    failed: "签到失败",
+  },
+  en: {
+    loading: "Loading",
+    waiting: "Waiting",
+    completed: "Checked in today",
+    locked: "Stella only",
+    button: "Check in today",
+    alreadyChecked: "Already checked in today.",
+    success: "Check-in succeeded. A piece of starlight was collected today.",
+    onlyHeroine: "Only the heroine account can check in for now.",
+    signInRequired: "Please sign in as the heroine first.",
+    failed: "Check-in failed",
+  },
+};
+
+function getCurrentMonthCalendar(checkinDates: string[]): CalendarCell[] {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const today = now.getDate();
+  const checkedDateSet = new Set(checkinDates);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -66,10 +124,12 @@ function getCurrentMonthCalendar(): CalendarCell[] {
   }
 
   for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = getLocalDateKey(new Date(year, month, day));
+
     cells.push({
       key: `day-${day}`,
       day,
-      checked: day <= today,
+      checked: checkedDateSet.has(dateKey),
       isToday: day === today,
       isFuture: day > today,
     });
@@ -103,17 +163,166 @@ function getCurrentMonthLabel(lang: "cn" | "en") {
 
 export default function HomePage() {
   const { lang, t } = useLanguage();
-  const [daysTogether, setDaysTogether] = useState(getDaysTogether());
+  const supabase = createClient();
+  const checkinCopy = checkinCopies[lang];
 
-  const monthCalendar = getCurrentMonthCalendar();
+  const [daysTogether, setDaysTogether] = useState(getDaysTogether());
+  const [role, setRole] = useState<ProfileRole | null>(null);
+  const [checkinDates, setCheckinDates] = useState<string[]>([]);
+  const [isLoadingCheckins, setIsLoadingCheckins] = useState(true);
+  const [checkinStatus, setCheckinStatus] = useState("");
+  const [checkinToastKey, setCheckinToastKey] = useState(0);
+  const [currentEnergy, setCurrentEnergy] = useState(0);
+  const [isLoadingEnergy, setIsLoadingEnergy] = useState(true);
+
+  const todayKey = getLocalDateKey(new Date());
+  const hasCheckedInToday = checkinDates.includes(todayKey);
+  const canCheckIn = role === "heroine";
+
+  const monthCalendar = getCurrentMonthCalendar(checkinDates);
   const monthLabel = getCurrentMonthLabel(lang);
 
+  async function loadCurrentProfile() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setRole(null);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setRole(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (error) {
+      setRole(null);
+      return;
+    }
+
+    setRole(data.role as ProfileRole);
+  }
+
+  async function loadCheckins() {
+    setIsLoadingCheckins(true);
+
+    const { start, end } = getCurrentMonthRange();
+
+    const { data, error } = await supabase
+      .from("daily_checkins")
+      .select("checkin_date")
+      .gte("checkin_date", start)
+      .lte("checkin_date", end)
+      .order("checkin_date", { ascending: true });
+
+    if (error) {
+      setCheckinStatus(`读取签到失败：${error.message}`);
+      setCheckinDates([]);
+      setIsLoadingCheckins(false);
+      return;
+    }
+
+    setCheckinDates(
+      (data as DailyCheckinRow[]).map((item) => item.checkin_date),
+    );
+    setIsLoadingCheckins(false);
+  }
+
+  async function loadEnergyBalance() {
+    setIsLoadingEnergy(true);
+
+    const { data, error } = await supabase
+      .from("energy_transactions")
+      .select("amount");
+
+    if (error) {
+      setCheckinStatus(`读取星光值失败：${error.message}`);
+      setCurrentEnergy(0);
+      setIsLoadingEnergy(false);
+      return;
+    }
+
+    const total = (data as EnergyTransactionRow[]).reduce(
+      (sum, item) => sum + (item.amount ?? 0),
+      0,
+    );
+
+    setCurrentEnergy(total);
+    setIsLoadingEnergy(false);
+  }
+
+  async function handleCheckin() {
+    if (!canCheckIn) {
+      setCheckinStatus(checkinCopy.onlyHeroine);
+      return;
+    }
+
+    if (hasCheckedInToday) {
+      setCheckinStatus(checkinCopy.alreadyChecked);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCheckinStatus(checkinCopy.signInRequired);
+      return;
+    }
+
+    const { error } = await supabase.from("daily_checkins").insert({
+      user_id: user.id,
+      checkin_date: todayKey,
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        setCheckinDates((current) =>
+          current.includes(todayKey) ? current : [...current, todayKey],
+        );
+        await loadEnergyBalance();
+        setCheckinStatus(checkinCopy.alreadyChecked);
+        return;
+      }
+
+      setCheckinStatus(`${checkinCopy.failed}：${error.message}`);
+      return;
+    }
+
+    setCheckinDates((current) =>
+      current.includes(todayKey) ? current : [...current, todayKey],
+    );
+
+    await loadEnergyBalance();
+
+    setCheckinStatus(checkinCopy.success);
+    setCheckinToastKey(Date.now());
+  }
+
   useEffect(() => {
+    loadCurrentProfile();
+    loadCheckins();
+    loadEnergyBalance();
+
     const timer = window.setInterval(() => {
       setDaysTogether(getDaysTogether());
     }, 60 * 1000);
 
     return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -126,10 +335,13 @@ export default function HomePage() {
       backgroundVariant="plaza"
       fontVariant="plaza"
     >
-      <CheckinToast
-        title={t.home.checkinToastTitle}
-        subtitle={t.home.checkinToastSubtitle}
-      />
+      {checkinToastKey > 0 ? (
+        <CheckinToast
+          key={checkinToastKey}
+          title={t.home.checkinToastTitle}
+          subtitle={t.home.checkinToastSubtitle}
+        />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-[2rem] border border-white/20 bg-slate-950/25 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-md">
@@ -146,7 +358,7 @@ export default function HomePage() {
 
             <div className="rounded-3xl border border-white/25 bg-white/45 p-5 text-slate-950 shadow-lg backdrop-blur">
               <p className="text-sm text-slate-700">{t.home.currentEnergy}</p>
-              <p className="mt-3 text-4xl font-semibold">1314</p>
+              <p className="mt-3 text-4xl font-semibold">{currentEnergy}</p>
             </div>
 
             <div className="flex flex-col justify-between rounded-3xl border border-white/15 bg-slate-950/55 p-5 shadow-lg backdrop-blur">
@@ -163,9 +375,36 @@ export default function HomePage() {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-3xl border border-emerald-200/30 bg-emerald-300/20 p-5 shadow-lg backdrop-blur">
               <p className="text-sm text-emerald-50">{t.home.todayCheckin}</p>
+
               <p className="mt-3 text-2xl font-semibold text-white">
-                {t.home.completed}
+                {isLoadingCheckins
+                  ? checkinCopy.loading
+                  : hasCheckedInToday
+                    ? checkinCopy.completed
+                    : canCheckIn
+                      ? checkinCopy.waiting
+                      : checkinCopy.locked}
               </p>
+
+              <button
+                type="button"
+                onClick={handleCheckin}
+                disabled={isLoadingCheckins || hasCheckedInToday || !canCheckIn}
+                className={[
+                  "mt-4 rounded-full px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed",
+                  !isLoadingCheckins && !hasCheckedInToday && canCheckIn
+                    ? "bg-white text-emerald-950 hover:bg-emerald-100"
+                    : "bg-white/15 text-white/50",
+                ].join(" ")}
+              >
+                {hasCheckedInToday ? checkinCopy.completed : checkinCopy.button}
+              </button>
+
+              {checkinStatus ? (
+                <p className="mt-3 text-sm leading-6 text-emerald-50/85">
+                  {checkinStatus}
+                </p>
+              ) : null}
             </div>
 
             <div className="rounded-3xl border border-amber-200/30 bg-amber-300/20 p-5 shadow-lg backdrop-blur">
