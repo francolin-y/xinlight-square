@@ -7,37 +7,41 @@ import { useLanguage } from "@/components/LanguageProvider";
 const treeCopies = {
   cn: {
     writeTitle: "写一句留言",
-    textareaPlaceholder: "之后这里会接入密码或订阅权限",
+    textareaPlaceholder: "把想说的话写下来，种到这棵树上。",
     submit: "种下留言",
     messageTitle: "树上的留言",
-    emptyHint: "先写一句留言，再把它种到树上。",
+    emptyHint: "留言会成为树上的一片新叶子。",
     plantedLabel: "刚刚种下",
     savedLabel: "已生长",
     treeStatus: "留言树状态",
-    treeStatusValue: "正在发光",
+    treeStatusValue: "静静生长",
     messages: [
-      "今天也记得收集一点星光。",
-      "这棵树以后会长出很多留言。",
-      "某些留言可以和彩蛋、谜题或照片关联。",
+      "第一片叶子先挂在这里。",
+      "这棵树会慢慢长出更多想说的话。",
+      "有些话不需要立刻被看见，只要被好好留下。",
     ],
   },
   en: {
     writeTitle: "Write a message",
-    textareaPlaceholder:
-      "Password or subscription permission will be connected here later.",
+    textareaPlaceholder: "Write down what you want to say and plant it here.",
     submit: "Plant message",
     messageTitle: "Messages on the tree",
-    emptyHint: "Write a message first, then plant it on the tree.",
+    emptyHint: "Each message becomes a new leaf on the tree.",
     plantedLabel: "Just planted",
     savedLabel: "Growing",
     treeStatus: "Message tree status",
-    treeStatusValue: "Glowing",
+    treeStatusValue: "Quietly growing",
     messages: [
-      "Remember to collect a little starlight today.",
-      "This tree will grow many messages later.",
-      "Some messages can be linked to easter eggs, puzzles, or photos.",
+      "The first leaf is placed here.",
+      "This tree will slowly grow more words.",
+      "Some words do not need to be seen immediately. They only need to be kept.",
     ],
   },
+};
+
+const treeBackgrounds = {
+  desktop: "/backgrounds/tree/tree-main-desktop.png",
+  mobile: "/backgrounds/tree/tree-main-mobile.png",
 };
 
 type TreeMessage = {
@@ -84,14 +88,28 @@ export default function TreePage() {
       loadingVariant="tree"
       fontVariant="tree"
     >
-      <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div
+          className="hidden h-full w-full bg-cover bg-center bg-no-repeat md:block"
+          style={{ backgroundImage: `url(${treeBackgrounds.desktop})` }}
+        />
+        <div
+          className="block h-full w-full bg-cover bg-center bg-no-repeat md:hidden"
+          style={{ backgroundImage: `url(${treeBackgrounds.mobile})` }}
+        />
+        <div className="absolute inset-0 bg-emerald-950/35" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/70" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(187,247,208,0.08),transparent_48%)]" />
+      </div>
+
+      <div className="relative z-10 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-emerald-200/10 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur-md">
           <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-300/20 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-cyan-300/10 blur-3xl" />
 
           <div className="relative">
             <div className="mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-white/15 text-4xl shadow-lg ring-1 ring-white/20">
-              ✦
+              ❦
             </div>
 
             <h2 className="text-2xl font-semibold">{page.writeTitle}</h2>
@@ -143,7 +161,7 @@ export default function TreePage() {
               </div>
 
               <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950">
-                {messages.length} ✦
+                {messages.length} ❦
               </div>
             </div>
 

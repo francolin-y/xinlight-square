@@ -33,7 +33,7 @@ export const copy = {
     nav: {
       home: "天空广场",
       magic: "魔法空间",
-      energy: "爱心充电站",
+      energy: "爱心星球",
       market: "快乐批发市场",
       studio: "记忆暗房",
       tree: "留言树",
@@ -82,8 +82,8 @@ export const copy = {
     },
     energy: {
       loadingTitle: "正在注入爱意与星光",
-      loadingSubtitle: "爱心充电站启动中",
-      title: "爱心充电站",
+      loadingSubtitle: "爱心星球旋转中",
+      title: "爱心星球",
       intro: "这里会展示你的星光流水。",
     },
     market: {
@@ -110,7 +110,7 @@ export const copy = {
     nav: {
       home: "Skyland Square",
       magic: "Magic Room",
-      energy: "Heart Charging Station",
+      energy: "Heart Planet",
       market: "Joy Market",
       studio: "Memory Darkroom",
       tree: "Message Tree",
@@ -160,7 +160,7 @@ export const copy = {
     energy: {
       loadingTitle: "Charging with starlight",
       loadingSubtitle: "Starting the heart station",
-      title: "Heart Charging Station",
+      title: "Heart Planet",
       intro: "This page will show starlight sources and the energy ledger.",
     },
     market: {

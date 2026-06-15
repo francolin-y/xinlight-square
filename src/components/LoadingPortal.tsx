@@ -31,6 +31,7 @@ export function LoadingPortal({
   const isHeartLoading = variant === "heart";
   const isMarketLoading = variant === "market";
   const isStudioLoading = variant === "studio";
+  const isTreeLoading = variant === "tree";
 
   useEffect(() => {
     const textTimer = window.setInterval(() => {
@@ -198,7 +199,30 @@ export function LoadingPortal({
           <div className="relative z-[2]">
             <PortalAtmosphere variant={variant} />
           </div>
-        </>  
+        </>
+      ) : isTreeLoading ? (
+        <>
+          <picture className="absolute inset-0 z-0">
+            <source
+              media="(min-width: 768px)"
+              srcSet="/backgrounds/loading/tree-loading-desktop.png"
+            />
+            <img
+              src="/backgrounds/loading/tree-loading-mobile.png"
+              alt=""
+              aria-hidden="true"
+              className="h-full w-full object-cover object-center"
+            />
+          </picture>
+
+          <div className="absolute inset-0 z-[1] bg-emerald-950/20" />
+          <div className="absolute inset-0 z-[1] bg-gradient-to-b from-emerald-950/10 via-slate-950/10 to-slate-950/60" />
+          <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,rgba(187,247,208,0.12),transparent_44%)]" />
+
+          <div className="relative z-[2]">
+            <PortalAtmosphere variant={variant} />
+          </div>
+        </>    
       ) : (
         <>
           <PortalAtmosphere variant={variant} />

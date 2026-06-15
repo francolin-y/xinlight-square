@@ -36,6 +36,7 @@ export function PageShell({
   const isEnergyBackground = backgroundVariant === "energy";
   const isStudioBackground = backgroundVariant === "studio";
   const isMarketPage = fontVariant === "market";
+  const isTreePage = fontVariant === "tree";
 
   const fontClass: Record<FontVariant, string> = {
     plaza: "font-plaza",
@@ -56,7 +57,9 @@ export function PageShell({
           ? "rounded-[2rem] border border-amber-100/15 bg-slate-950/45 p-6 shadow-2xl shadow-black/35 backdrop-blur-md ring-1 ring-amber-100/10 md:p-8"
           : isMarketPage
             ? "rounded-[2rem] border border-white/25 bg-white/5 p-6 shadow-2xl shadow-amber-950/20 backdrop-blur-[1px] ring-1 ring-white/10 md:p-8"
-            : "";
+            : isTreePage
+              ? "rounded-[2rem] border border-emerald-100/20 bg-emerald-950/25 p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-md ring-1 ring-white/10 md:p-8"
+              : "";
 
   const eyebrowClass = isEnergyBackground
     ? "mb-4 text-sm uppercase tracking-[0.35em] text-pink-100 drop-shadow"
