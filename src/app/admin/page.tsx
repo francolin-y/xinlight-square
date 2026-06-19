@@ -77,10 +77,38 @@ export default function AdminPage() {
 
   const [pendingGifts, setPendingGifts] = useState<PendingGift[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionRow[]>([]);
+  const [reviewImageFiles, setReviewImageFiles] = useState<
+    Record<string, File | null>
+    >({});
+  const [reviewingGiftId, setReviewingGiftId] = useState<string | null>(null);
+  const [reviewStatus, setReviewStatus] = useState("");
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [energyTransactions, setEnergyTransactions] = useState<
     EnergyTransactionRow[]
   >([]);
+
+  async function uploadGiftImage(file: File, giftId: string) {
+    const rawExtension = file.name.split(".").pop() ?? "png";
+    const safeExtension =
+        rawExtension.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+
+    const filePath = `gift-requests/${giftId}-${Date.now()}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from("gift-images")
+        .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+        });
+
+    if (uploadError) {
+        throw uploadError;
+    }
+
+    const { data } = supabase.storage.from("gift-images").getPublicUrl(filePath);
+
+    return data.publicUrl;
+    }
 
   async function loadAdminDashboard() {
     setAccessStatus("loading");
@@ -147,6 +175,57 @@ export default function AdminPage() {
 
     setPendingGifts((data ?? []) as PendingGift[]);
   }
+
+  async function handleActivateGift(giftId: string) {
+    const imageFile = reviewImageFiles[giftId];
+
+    if (!imageFile) {
+        setReviewStatus("请先选择礼物图片。");
+        return;
+    }
+
+    setReviewingGiftId(giftId);
+    setReviewStatus("正在上传图片并上架……");
+
+    let imagePublicUrl = "";
+
+    try {
+        imagePublicUrl = await uploadGiftImage(imageFile, giftId);
+    } catch (uploadError) {
+        setReviewStatus(
+        `图片上传失败：${
+            uploadError instanceof Error ? uploadError.message : "Unknown error"
+        }`,
+        );
+        setReviewingGiftId(null);
+        return;
+    }
+
+    const { error } = await supabase.rpc("approve_gift_request", {
+        gift_id_input: giftId,
+        image_path_input: imagePublicUrl,
+    });
+
+    if (error) {
+        setReviewStatus(`审核上架失败：${error.message}`);
+        setReviewingGiftId(null);
+        return;
+    }
+
+    setReviewImageFiles((current) => ({
+        ...current,
+        [giftId]: null,
+    }));
+
+    setReviewStatus("礼物已审核上架。");
+    setReviewingGiftId(null);
+
+    await Promise.all([
+        loadPendingGifts(),
+        loadRecentRedemptions(),
+        loadRecentEnergyTransactions(),
+    ]);
+    }
 
   async function loadRecentRedemptions() {
     const { data: redemptionRows, error } = await supabase
@@ -326,28 +405,58 @@ export default function AdminPage() {
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
             <h2 className="text-xl font-semibold">待审核礼物需求</h2>
+            {reviewStatus ? (
+                <p className="mt-3 rounded-2xl border border-amber-200/20 bg-amber-100/10 px-4 py-3 text-sm text-amber-100">
+                    {reviewStatus}
+                </p>
+                ) : null}
             <div className="mt-5 space-y-3">
               {pendingGifts.length === 0 ? (
                 <p className="text-sm text-stone-400">暂无待审核礼物。</p>
               ) : (
                 pendingGifts.map((gift) => (
-                  <div
-                    key={gift.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-semibold">{gift.title_cn}</p>
-                        <p className="mt-1 text-sm text-stone-400">
-                          {gift.price} 星光值 · {formatDateTime(gift.created_at)}
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-amber-200/30 px-3 py-1 text-xs text-amber-100">
-                        待审核
-                      </span>
+                    <div
+                        key={gift.id}
+                        className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                    >
+                        <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="font-semibold">{gift.title_cn}</p>
+                            <p className="mt-1 text-sm text-stone-400">
+                            {gift.price} 星光值 · {formatDateTime(gift.created_at)}
+                            </p>
+                        </div>
+                        <span className="rounded-full border border-amber-200/30 px-3 py-1 text-xs text-amber-100">
+                            待审核
+                        </span>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                        <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null;
+
+                            setReviewImageFiles((current) => ({
+                                ...current,
+                                [gift.id]: file,
+                            }));
+                            }}
+                            className="block w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-200 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
+                        />
+
+                        <button
+                            type="button"
+                            onClick={() => void handleActivateGift(gift.id)}
+                            disabled={reviewingGiftId === gift.id}
+                            className="w-full rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {reviewingGiftId === gift.id ? "正在上架……" : "上传图片并上架"}
+                        </button>
+                        </div>
                     </div>
-                  </div>
-                ))
+                    ))
               )}
             </div>
           </div>
