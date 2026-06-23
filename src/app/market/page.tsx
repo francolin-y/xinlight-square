@@ -316,11 +316,6 @@ export default function MarketPage() {
 
   const [adminTasks, setAdminTasks] = useState<GiftAdminTask[]>([]);
   const [pendingGifts, setPendingGifts] = useState<GiftRow[]>([]);
-  const [reviewImageFiles, setReviewImageFiles] = useState<
-    Record<string, File | null>
-  >({});
-  const [reviewStatus, setReviewStatus] = useState("");
-  const [reviewingGiftId, setReviewingGiftId] = useState<string | null>(null);
 
   const [arrivalInputs, setArrivalInputs] = useState<Record<string, string>>(
     {},
@@ -615,56 +610,6 @@ export default function MarketPage() {
     }
   }
 
-  async function handleActivateGift(giftId: string) {
-    if (role !== "admin") return;
-
-    const imageFile = reviewImageFiles[giftId];
-
-    if (!imageFile) {
-      setReviewStatus(page.reviewMissingImage);
-      return;
-    }
-
-    setReviewingGiftId(giftId);
-    setReviewStatus(page.uploadingImage);
-
-    let imagePublicUrl = "";
-
-    try {
-      imagePublicUrl = await uploadGiftImage(imageFile, giftId);
-    } catch (uploadError) {
-      setReviewStatus(
-        `${page.uploadFailed}：${
-          uploadError instanceof Error ? uploadError.message : "Unknown error"
-        }`,
-      );
-      setReviewingGiftId(null);
-      return;
-    }
-
-    const { error } = await supabase.rpc("approve_gift_request", {
-      gift_id_input: giftId,
-      image_path_input: imagePublicUrl,
-    });
-
-    if (error) {
-      setReviewStatus(`${page.reviewFailed}：${error.message}`);
-      setReviewingGiftId(null);
-      return;
-    }
-
-    setReviewImageFiles((current) => ({
-      ...current,
-      [giftId]: null,
-    }));
-
-    setReviewStatus(page.reviewActivated);
-    setReviewingGiftId(null);
-
-    await loadGifts();
-    await reloadRoleBasedPanels(role);
-  }
-
   async function handleRedeemGift(giftId: string) {
     setRedeemingGiftId(giftId);
     setRedemptionStatus("");
@@ -951,87 +896,6 @@ export default function MarketPage() {
                 <p className="text-sm text-amber-100">{requestStatus}</p>
               ) : null}
             </div>
-          </section>
-        ) : null}
-
-        {role === "admin" ? (
-          <section className="mb-6 rounded-[2rem] border border-white/10 bg-slate-950/35 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur-md">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold">{page.adminTodoTitle}</h2>
-
-              <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950">
-                {adminTasks.length} {page.adminTodoCount}
-              </span>
-            </div>
-
-            {reviewStatus ? (
-              <p className="mt-3 text-sm text-amber-100">{reviewStatus}</p>
-            ) : null}
-
-            {pendingGifts.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-300">
-                {page.adminTodoEmpty}
-              </p>
-            ) : (
-              <div className="mt-4 grid gap-3">
-                {pendingGifts.map((gift) => (
-                  <div
-                    key={gift.id}
-                    className="rounded-2xl border border-white/10 bg-white/10 px-5 py-4"
-                  >
-                    <div className="grid gap-4 lg:grid-cols-[1fr_1.3fr_auto] lg:items-end">
-                      <div>
-                        <p className="font-medium text-white">
-                          {currentLang === "cn" ? gift.title_cn : gift.title_en}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-300">
-                          {gift.submitted_at
-                            ? formatDateTime(gift.submitted_at, currentLang)
-                            : page.pendingStatus}
-                          {" · "}
-                          {gift.price} {page.priceUnit}
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-slate-200">
-                          {currentLang === "cn"
-                            ? gift.description_cn
-                            : gift.description_en}
-                        </p>
-                      </div>
-
-                      <label className="grid gap-2">
-                        <span className="text-sm text-slate-300">
-                          {page.reviewImageLabel}
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif"
-                          onChange={(event) =>
-                            setReviewImageFiles((current) => ({
-                              ...current,
-                              [gift.id]: event.target.files?.[0] ?? null,
-                            }))
-                          }
-                          className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-950 hover:file:bg-amber-100 focus:border-amber-200/50"
-                        />
-                        <span className="text-xs text-slate-400">
-                          {reviewImageFiles[gift.id]?.name ??
-                            page.reviewImageHelp}
-                        </span>
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => handleActivateGift(gift.id)}
-                        disabled={reviewingGiftId === gift.id}
-                        className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {page.reviewActivate}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
         ) : null}
 
