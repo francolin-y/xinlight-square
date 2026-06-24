@@ -28,6 +28,8 @@ type RedemptionRow = {
   giftTitle?: string;
 };
 
+type GiftType = "virtual" | "physical" | "date_plan";
+
 type MessageRow = {
   id: string;
   content: string;
@@ -102,6 +104,15 @@ export default function AdminPage() {
   const [energyTransactions, setEnergyTransactions] = useState<
     EnergyTransactionRow[]
   >([]);
+
+  const [newGiftTitle, setNewGiftTitle] = useState("");
+  const [newGiftDescription, setNewGiftDescription] = useState("");
+  const [newGiftPrice, setNewGiftPrice] = useState("1");
+  const [newGiftIcon, setNewGiftIcon] = useState("◆");
+  const [newGiftType, setNewGiftType] = useState<GiftType>("virtual");
+  const [newGiftImageFile, setNewGiftImageFile] = useState<File | null>(null);
+  const [isPublishingGift, setIsPublishingGift] = useState(false);
+  const [publishGiftStatus, setPublishGiftStatus] = useState("");
 
   async function uploadGiftImage(file: File, giftId: string) {
     const rawExtension = file.name.split(".").pop() ?? "png";
@@ -242,6 +253,81 @@ export default function AdminPage() {
         loadRecentEnergyTransactions(),
     ]);
     }
+
+  async function handlePublishGift() {
+    const title = newGiftTitle.trim();
+    const description = newGiftDescription.trim();
+    const parsedPrice = Number(newGiftPrice);
+    const icon = newGiftIcon.trim() || "◆";
+
+    if (!title || !Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      setPublishGiftStatus("请填写礼物标题和有效星光值价格。");
+      return;
+    }
+
+    setIsPublishingGift(true);
+    setPublishGiftStatus("正在发布礼物……");
+
+    try {
+      const { data: createdGiftId, error } = await supabase.rpc(
+        "create_market_gift",
+        {
+          title_input: title,
+          description_input: description || title,
+          price_input: Math.round(parsedPrice),
+          icon_input: icon.slice(0, 8),
+          gift_type_input: newGiftType,
+        },
+      );
+
+      if (error || !createdGiftId) {
+        setPublishGiftStatus(
+          `发布失败：${error?.message ?? "No gift id returned"}`,
+        );
+        return;
+      }
+
+      if (newGiftImageFile) {
+        const imagePublicUrl = await uploadGiftImage(
+          newGiftImageFile,
+          createdGiftId,
+        );
+
+        const { error: updateImageError } = await supabase
+          .from("gifts")
+          .update({ image_path: imagePublicUrl })
+          .eq("id", createdGiftId);
+
+        if (updateImageError) {
+          setPublishGiftStatus(`图片保存失败：${updateImageError.message}`);
+          return;
+        }
+      }
+
+      setNewGiftTitle("");
+      setNewGiftDescription("");
+      setNewGiftPrice("1");
+      setNewGiftIcon("◆");
+      setNewGiftType("virtual");
+      setNewGiftImageFile(null);
+
+      setPublishGiftStatus("礼物已直接发布到市场。");
+
+      await Promise.all([
+        loadPendingGifts(),
+        loadRecentRedemptions(),
+        loadRecentEnergyTransactions(),
+      ]);
+    } catch (publishError) {
+      setPublishGiftStatus(
+        `发布失败：${
+          publishError instanceof Error ? publishError.message : "Unknown error"
+        }`,
+      );
+    } finally {
+      setIsPublishingGift(false);
+    }
+  }
 
   async function loadRecentRedemptions() {
     const { data: redemptionRows, error } = await supabase
@@ -463,6 +549,104 @@ export default function AdminPage() {
             </p>
           </div>
         </section>
+
+        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+            <div className="flex flex-col gap-2">
+                <p className="text-sm uppercase tracking-[0.3em] text-amber-200/80">
+                Publish Gift
+                </p>
+                <h2 className="text-xl font-semibold">直接发布礼物</h2>
+                <p className="text-sm text-stone-400">
+                这里由站长直接创建 active 礼物，发布后会进入 Market 货架。
+                </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">礼物标题</span>
+                <input
+                    value={newGiftTitle}
+                    onChange={(event) => setNewGiftTitle(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="例如：一杯热奶茶"
+                />
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">星光值价格</span>
+                <input
+                    type="number"
+                    min="1"
+                    value={newGiftPrice}
+                    onChange={(event) => setNewGiftPrice(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                />
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">礼物图标</span>
+                <input
+                    value={newGiftIcon}
+                    onChange={(event) => setNewGiftIcon(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="◆"
+                />
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">礼物类型</span>
+                <select
+                    value={newGiftType}
+                    onChange={(event) => setNewGiftType(event.target.value as GiftType)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                >
+                    <option value="virtual">虚拟礼物</option>
+                    <option value="physical">实体礼物</option>
+                    <option value="date_plan">约会计划</option>
+                </select>
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">礼物描述</span>
+                <textarea
+                    value={newGiftDescription}
+                    onChange={(event) => setNewGiftDescription(event.target.value)}
+                    className="min-h-28 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="写下这个礼物的说明。"
+                />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">礼物图片</span>
+                <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(event) =>
+                    setNewGiftImageFile(event.target.files?.[0] ?? null)
+                    }
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
+                />
+                <span className="text-xs text-stone-500">
+                    {newGiftImageFile ? newGiftImageFile.name : "可选。上传后会显示在礼物卡片中。"}
+                </span>
+                </label>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                type="button"
+                onClick={() => void handlePublishGift()}
+                disabled={isPublishingGift}
+                className="rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                {isPublishingGift ? "正在发布……" : "直接发布礼物"}
+                </button>
+
+                {publishGiftStatus ? (
+                <p className="text-sm text-amber-100">{publishGiftStatus}</p>
+                ) : null}
+            </div>
+            </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">

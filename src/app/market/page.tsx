@@ -93,7 +93,6 @@ const marketCopies = {
     requestImageHelp: "管理猿上传图片后，礼物卡片会显示真实图片。",
     requestType: "类型",
     requestSubmitHeroine: "提交给管理猿审核",
-    requestSubmitAdmin: "直接上架礼物",
     requestSuccessHeroine: "礼物需求已提交给管理猿审核。",
     requestSuccessAdmin: "礼物已直接上架。",
     requestOnly: "只有小欣可以上传礼物需求。",
@@ -159,7 +158,6 @@ const marketCopies = {
       "Admin uploads the image, and the gift card will show the real image.",
     requestType: "Type",
     requestSubmitHeroine: "Submit for admin review",
-    requestSubmitAdmin: "Publish gift directly",
     requestSuccessHeroine: "Gift request submitted for admin review.",
     requestSuccessAdmin: "Gift published directly.",
     requestOnly: "Only the heroine and admin can upload gift requests.",
@@ -334,7 +332,7 @@ export default function MarketPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
 
-  const canUploadGift = role === "admin" || role === "heroine";
+  const canUploadGift = role === "heroine";
 
   async function getCurrentAuthenticatedUserId() {
     const {
@@ -813,27 +811,6 @@ export default function MarketPage() {
               </label>
             </div>
 
-            {role === "admin" ? (
-              <label className="mt-4 grid gap-2">
-                <span className="text-sm text-slate-300">
-                  {page.requestImage}
-                </span>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(event) =>
-                    setRequestImageFile(event.target.files?.[0] ?? null)
-                  }
-                  className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-950 hover:file:bg-amber-100 focus:border-amber-200/50"
-                />
-                <span className="text-xs text-slate-400">
-                  {requestImageFile
-                    ? requestImageFile.name
-                    : page.requestImageHelp}
-                </span>
-              </label>
-            ) : null}
-
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -841,9 +818,7 @@ export default function MarketPage() {
                 disabled={isSubmittingRequest}
                 className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {role === "admin"
-                  ? page.requestSubmitAdmin
-                  : page.requestSubmitHeroine}
+                {page.requestSubmitHeroine}
               </button>
 
               {requestStatus ? (
