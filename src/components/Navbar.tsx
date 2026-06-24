@@ -178,11 +178,6 @@ export function Navbar() {
           {profile ? (
             <div className="hidden items-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-100/10 px-3 py-2 text-xs text-emerald-100 md:flex">
               <span>{getRoleLabel(profile.role, lang)}</span>
-              {profile.display_name ? (
-                <span className="text-emerald-100/60">
-                  · {profile.display_name}
-                </span>
-              ) : null}
             </div>
           ) : null}
 
@@ -271,11 +266,6 @@ export function Navbar() {
           </Link>
         ) : null}
 
-        {profile ? (
-          <div className="shrink-0 rounded-full border border-emerald-200/20 bg-emerald-100/10 px-4 py-2 text-sm text-emerald-100">
-            {getRoleLabel(profile.role, lang)}
-          </div>
-        ) : null}
       </div>
     </header>
   );
