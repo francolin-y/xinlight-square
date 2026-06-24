@@ -421,19 +421,6 @@ export default function MarketPage() {
 
     const nextRedemptions = (data ?? []) as RedemptionRow[];
     setRedemptions(nextRedemptions);
-    setArrivalInputs((current) => {
-      const nextInputs = { ...current };
-
-      nextRedemptions.forEach((redemption) => {
-        if (redemption.expected_arrival_at && !nextInputs[redemption.id]) {
-          nextInputs[redemption.id] = formatDateInputValue(
-            redemption.expected_arrival_at,
-          );
-        }
-      });
-
-      return nextInputs;
-    });
   }
 
   async function loadAdminTasks(currentRole: ProfileRole | null) {
