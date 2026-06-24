@@ -56,6 +56,17 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function toDatetimeLocalInputValue(value: string | null) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  const pad = (number: number) => String(number).padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function getRedemptionStatusLabel(status: string) {
   if (status === "pending_receipt") return "待签收";
   if (status === "received") return "已签收";
@@ -77,6 +88,11 @@ export default function AdminPage() {
 
   const [pendingGifts, setPendingGifts] = useState<PendingGift[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionRow[]>([]);
+  
+  const [arrivalInputs, setArrivalInputs] = useState<Record<string, string>>({});
+  const [savingArrivalId, setSavingArrivalId] = useState<string | null>(null);
+  const [arrivalStatus, setArrivalStatus] = useState("");
+
   const [reviewImageFiles, setReviewImageFiles] = useState<
     Record<string, File | null>
     >({});
@@ -246,6 +262,7 @@ export default function AdminPage() {
 
     if (giftIds.length === 0) {
       setRedemptions([]);
+      setArrivalInputs({});
       return;
     }
 
@@ -264,12 +281,57 @@ export default function AdminPage() {
       (giftRows ?? []).map((gift) => [gift.id, gift.title_cn]),
     );
 
-    setRedemptions(
-      rows.map((row) => ({
-        ...row,
-        giftTitle: giftTitleMap.get(row.gift_id) ?? "未知礼物",
-      })),
-    );
+    const nextRedemptions = rows.map((row) => ({
+      ...row,
+      giftTitle: giftTitleMap.get(row.gift_id) ?? "未知礼物",
+    }));
+
+    setRedemptions(nextRedemptions);
+
+    setArrivalInputs((current) => {
+      const nextInputs = { ...current };
+
+      nextRedemptions.forEach((redemption) => {
+        if (
+          redemption.status === "pending_receipt" &&
+          nextInputs[redemption.id] === undefined
+        ) {
+          nextInputs[redemption.id] = toDatetimeLocalInputValue(
+            redemption.expected_arrival_at,
+          );
+        }
+      });
+
+      return nextInputs;
+    });
+  }
+
+  async function handleSaveArrival(redemptionId: string) {
+    const arrivalValue = arrivalInputs[redemptionId];
+
+    if (!arrivalValue) {
+      setArrivalStatus("请先填写预计到货时间。");
+      return;
+    }
+
+    setSavingArrivalId(redemptionId);
+    setArrivalStatus("正在保存预计到货时间……");
+
+    const { error } = await supabase.rpc("set_redemption_arrival", {
+      redemption_id_input: redemptionId,
+      expected_arrival_at_input: new Date(arrivalValue).toISOString(),
+    });
+
+    if (error) {
+      setArrivalStatus(`保存失败：${error.message}`);
+      setSavingArrivalId(null);
+      return;
+    }
+
+    setArrivalStatus("预计到货时间已保存。");
+    setSavingArrivalId(null);
+
+    await loadRecentRedemptions();
   }
 
   async function loadRecentMessages() {
@@ -463,6 +525,13 @@ export default function AdminPage() {
 
           <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
             <h2 className="text-xl font-semibold">近期兑换记录</h2>
+
+            {arrivalStatus ? (
+              <p className="mt-3 rounded-2xl border border-emerald-200/20 bg-emerald-100/10 px-4 py-3 text-sm text-emerald-100">
+                {arrivalStatus}
+              </p>
+            ) : null}
+
             <div className="mt-5 space-y-3">
               {redemptions.length === 0 ? (
                 <p className="text-sm text-stone-400">暂无兑换记录。</p>
@@ -484,6 +553,33 @@ export default function AdminPage() {
                         <p className="mt-1 text-xs text-stone-500">
                           到货：{formatDateTime(redemption.expected_arrival_at)}
                         </p>
+
+                        {redemption.status === "pending_receipt" ? (
+                          <div className="mt-4 grid gap-3">
+                            <input
+                              type="datetime-local"
+                              value={arrivalInputs[redemption.id] ?? ""}
+                              onChange={(event) =>
+                                setArrivalInputs((current) => ({
+                                  ...current,
+                                  [redemption.id]: event.target.value,
+                                }))
+                              }
+                              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-emerald-200/50"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveArrival(redemption.id)}
+                              disabled={savingArrivalId === redemption.id}
+                              className="rounded-full border border-emerald-200/40 bg-emerald-100/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {savingArrivalId === redemption.id
+                                ? "正在保存……"
+                                : "保存预计到货时间"}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                       <span className="rounded-full border border-emerald-200/30 px-3 py-1 text-xs text-emerald-100">
                         {getRedemptionStatusLabel(redemption.status)}

@@ -317,10 +317,6 @@ export default function MarketPage() {
   const [adminTasks, setAdminTasks] = useState<GiftAdminTask[]>([]);
   const [pendingGifts, setPendingGifts] = useState<GiftRow[]>([]);
 
-  const [arrivalInputs, setArrivalInputs] = useState<Record<string, string>>(
-    {},
-  );
-  const [savingArrivalId, setSavingArrivalId] = useState<string | null>(null);
   const [confirmingRedemptionId, setConfirmingRedemptionId] = useState<
     string | null
   >(null);
@@ -629,35 +625,6 @@ export default function MarketPage() {
 
     await Promise.all([loadGifts(), loadRedemptions()]);
     setCurrentPage(1);
-  }
-
-  async function handleSaveArrival(redemptionId: string) {
-    if (role !== "admin") return;
-
-    const inputValue = arrivalInputs[redemptionId];
-
-    if (!inputValue) {
-      setRedemptionStatus(page.arrivalMissing);
-      return;
-    }
-
-    setSavingArrivalId(redemptionId);
-    setRedemptionStatus("");
-
-    const { error } = await supabase.rpc("set_redemption_arrival", {
-      redemption_id_input: redemptionId,
-      expected_arrival_at_input: new Date(inputValue).toISOString(),
-    });
-
-    if (error) {
-      setRedemptionStatus(`${page.arrivalFailed}：${error.message}`);
-      setSavingArrivalId(null);
-      return;
-    }
-
-    setRedemptionStatus(page.arrivalSaved);
-    setSavingArrivalId(null);
-    await loadRedemptions();
   }
 
   async function handleConfirmReceipt(redemptionId: string) {
@@ -1062,36 +1029,6 @@ export default function MarketPage() {
                           </div>
                         ) : null}
                       </div>
-
-                      {role === "admin" && isPendingReceipt && redemption ? (
-                        <div className="mt-4 rounded-3xl border border-white/10 bg-slate-950/30 p-4">
-                          <label className="grid gap-2">
-                            <span className="text-sm text-slate-300">
-                              {page.setArrivalLabel}
-                            </span>
-                            <input
-                              type="datetime-local"
-                              value={arrivalInputs[redemption.id] ?? ""}
-                              onChange={(event) =>
-                                setArrivalInputs((current) => ({
-                                  ...current,
-                                  [redemption.id]: event.target.value,
-                                }))
-                              }
-                              className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white outline-none focus:border-amber-200/50"
-                            />
-                          </label>
-
-                          <button
-                            type="button"
-                            onClick={() => handleSaveArrival(redemption.id)}
-                            disabled={savingArrivalId === redemption.id}
-                            className="mt-3 w-full rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {page.setArrival}
-                          </button>
-                        </div>
-                      ) : null}
 
                       {role === "heroine" && isPendingReceipt && redemption ? (
                         <button
