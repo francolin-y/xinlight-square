@@ -1,27 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+type ProfileRole = "admin" | "heroine" | "fan" | "guest";
 
 type Profile = {
   id: string;
   display_name: string | null;
-  role: "admin" | "heroine" | "fan" | "guest";
+  role: ProfileRole;
   subscription_started_at: string | null;
 };
 
+function getRoleLabel(role: ProfileRole) {
+  if (role === "admin") return "站长";
+  if (role === "heroine") return "女主人公";
+  if (role === "fan") return "粉丝";
+  return "访客";
+}
+
+function getRoleRedirectPath(role: ProfileRole) {
+  if (role === "admin") return "/admin";
+
+  return "/";
+}
+
 export default function LoginPage() {
-  const supabase = createClient();
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
 
-  const [status, setStatus] = useState("Checking current session...");
+  const [status, setStatus] = useState("正在检查当前登录状态……");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function loadCurrentUser() {
-    setStatus("Checking current user...");
+    setIsChecking(true);
+    setStatus("正在检查当前登录状态……");
 
     const {
       data: { user },
@@ -29,15 +50,19 @@ export default function LoginPage() {
     } = await supabase.auth.getUser();
 
     if (userError) {
-      setStatus(`User check failed: ${userError.message}`);
+      setStatus(`读取登录状态失败：${userError.message}`);
       setProfile(null);
-      return;
+      setCurrentEmail(null);
+      setIsChecking(false);
+      return null;
     }
 
     if (!user) {
-      setStatus("Not logged in.");
+      setStatus("当前未登录。");
       setProfile(null);
-      return;
+      setCurrentEmail(null);
+      setIsChecking(false);
+      return null;
     }
 
     const { data, error: profileError } = await supabase
@@ -46,47 +71,26 @@ export default function LoginPage() {
       .eq("id", user.id)
       .single();
 
-    if (profileError) {
-      setStatus(`Logged in, but profile read failed: ${profileError.message}`);
+    if (profileError || !data) {
+      setStatus(
+        `已登录，但读取身份失败：${
+          profileError?.message ?? "Profile not found"
+        }`,
+      );
       setProfile(null);
-      return;
+      setCurrentEmail(user.email ?? null);
+      setIsChecking(false);
+      return null;
     }
 
-    setProfile(data as Profile);
-    setStatus(`Logged in as ${user.email}`);
-  }
+    const nextProfile = data as Profile;
 
-  async function handleSignUp() {
-    const trimmedEmail = email.trim();
-    const trimmedPassword = password.trim();
+    setProfile(nextProfile);
+    setCurrentEmail(user.email ?? null);
+    setStatus(`已登录：${user.email ?? "未知邮箱"}`);
+    setIsChecking(false);
 
-    if (!trimmedEmail || !trimmedPassword) {
-      setStatus("Email and password are required.");
-      return;
-    }
-
-    setStatus("Creating account...");
-
-    const { error } = await supabase.auth.signUp({
-      email: trimmedEmail,
-      password: trimmedPassword,
-      options: {
-        data: {
-          display_name: displayName.trim() || undefined,
-        },
-      },
-    });
-
-    if (error) {
-      setStatus(`Sign up failed: ${error.message}`);
-      return;
-    }
-
-    setStatus(
-      "Sign up succeeded. If email confirmation is enabled, confirm the email first, then sign in.",
-    );
-
-    await loadCurrentUser();
+    return nextProfile;
   }
 
   async function handleSignIn() {
@@ -94,11 +98,12 @@ export default function LoginPage() {
     const trimmedPassword = password.trim();
 
     if (!trimmedEmail || !trimmedPassword) {
-      setStatus("Email and password are required.");
+      setStatus("请填写邮箱和密码。");
       return;
     }
 
-    setStatus("Signing in...");
+    setIsSigningIn(true);
+    setStatus("正在登录……");
 
     const { error } = await supabase.auth.signInWithPassword({
       email: trimmedEmail,
@@ -106,29 +111,51 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setStatus(`Sign in failed: ${error.message}`);
+      setStatus(`登录失败：${error.message}`);
+      setIsSigningIn(false);
       return;
     }
 
-    await loadCurrentUser();
+    const nextProfile = await loadCurrentUser();
+
+    setIsSigningIn(false);
+
+    if (!nextProfile) {
+      setStatus("登录成功，但暂时无法读取身份。请刷新页面后重试。");
+      return;
+    }
+
+    setStatus(`登录成功，正在进入${getRoleLabel(nextProfile.role)}入口……`);
+    router.push(getRoleRedirectPath(nextProfile.role));
   }
 
   async function handleSignOut() {
-    setStatus("Signing out...");
+    setIsSigningOut(true);
+    setStatus("正在退出登录……");
 
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      setStatus(`Sign out failed: ${error.message}`);
+      setStatus(`退出失败：${error.message}`);
+      setIsSigningOut(false);
       return;
     }
 
     setProfile(null);
-    setStatus("Signed out.");
+    setCurrentEmail(null);
+    setPassword("");
+    setStatus("已退出登录。");
+    setIsSigningOut(false);
+  }
+
+  function handleEnterCurrentRolePage() {
+    if (!profile) return;
+
+    router.push(getRoleRedirectPath(profile.role));
   }
 
   useEffect(() => {
-    loadCurrentUser();
+    void loadCurrentUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -139,39 +166,35 @@ export default function LoginPage() {
           Account Gate
         </p>
 
-        <h1 className="mt-4 text-3xl font-semibold">最小登录测试</h1>
+        <h1 className="mt-4 text-3xl font-semibold">进入星光系统</h1>
+
+        <p className="mt-3 text-sm leading-6 text-slate-300">
+          登录后会根据当前身份进入对应入口。站长会进入后台，女主人公会回到天空广场。
+        </p>
 
         <div className="mt-8 grid gap-4">
           <label className="grid gap-2">
-            <span className="text-sm text-slate-300">Display name</span>
-            <input
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-              placeholder="比如：站长"
-              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50"
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-slate-300">Email</span>
+            <span className="text-sm text-slate-300">邮箱</span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
               autoComplete="email"
-              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50"
+              disabled={isSigningIn || isSigningOut}
+              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
 
           <label className="grid gap-2">
-            <span className="text-sm text-slate-300">Password</span>
+            <span className="text-sm text-slate-300">密码</span>
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
-              placeholder="至少 6 位"
+              placeholder="请输入密码"
               autoComplete="current-password"
-              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50"
+              disabled={isSigningIn || isSigningOut}
+              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
         </div>
@@ -179,48 +202,60 @@ export default function LoginPage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={handleSignUp}
-            className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-100"
+            onClick={handleSignIn}
+            disabled={isSigningIn || isSigningOut}
+            className="rounded-full bg-sky-200 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Sign up
+            {isSigningIn ? "正在登录……" : "登录"}
           </button>
 
-          <button
-            type="button"
-            onClick={handleSignIn}
-            className="rounded-full bg-sky-200 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-white"
-          >
-            Sign in
-          </button>
+          {profile ? (
+            <button
+              type="button"
+              onClick={handleEnterCurrentRolePage}
+              className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-100"
+            >
+              {profile.role === "admin" ? "进入站长后台" : "进入天空广场"}
+            </button>
+          ) : null}
 
           <button
             type="button"
             onClick={handleSignOut}
-            className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+            disabled={isSigningIn || isSigningOut}
+            className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Sign out
+            {isSigningOut ? "正在退出……" : "退出登录"}
           </button>
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-          <p className="text-sm text-slate-400">Status</p>
-          <p className="mt-2 leading-7 text-slate-100">{status}</p>
+          <p className="text-sm text-slate-400">状态</p>
+          <p className="mt-2 leading-7 text-slate-100">
+            {isChecking ? "正在检查当前登录状态……" : status}
+          </p>
         </div>
 
         {profile ? (
           <div className="mt-4 rounded-2xl border border-emerald-200/20 bg-emerald-200/10 p-4">
-            <p className="text-sm text-emerald-100">Profile</p>
+            <p className="text-sm text-emerald-100">当前身份</p>
 
             <div className="mt-3 space-y-2 text-sm text-slate-100">
               <p>
-                <span className="text-slate-400">Display name:</span>{" "}
+                <span className="text-slate-400">邮箱：</span>
+                {currentEmail ?? "未知"}
+              </p>
+              <p>
+                <span className="text-slate-400">昵称：</span>
                 {profile.display_name ?? "未设置"}
               </p>
               <p>
-                <span className="text-slate-400">Role:</span> {profile.role}
+                <span className="text-slate-400">身份：</span>
+                {getRoleLabel(profile.role)}{" "}
+                <span className="text-slate-500">({profile.role})</span>
               </p>
               <p>
-                <span className="text-slate-400">Subscription started:</span>{" "}
+                <span className="text-slate-400">订阅开始：</span>
                 {profile.subscription_started_at ?? "未设置"}
               </p>
             </div>
