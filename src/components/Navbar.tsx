@@ -102,6 +102,10 @@ export function Navbar() {
   const loginLabel = lang === "cn" ? "登录" : "Login";
   const logoutLabel = lang === "cn" ? "退出" : "Logout";
 
+  if (isLoginActive) {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/15 bg-slate-950/75 backdrop-blur-xl">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
