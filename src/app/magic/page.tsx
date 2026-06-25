@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useLanguage } from "@/components/LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
 import type { Lang } from "@/data/i18n";
 
 type LocalizedText = {
@@ -10,234 +11,58 @@ type LocalizedText = {
   en: string;
 };
 
-type MagicPuzzleStatus = "new" | "normal" | "solved";
+type MagicPuzzleStatus = "sleeping" | "available" | "solved" | "hidden";
+type MagicLoadStatus = "loading" | "allowed" | "signedOut" | "forbidden" | "error";
+
+type MagicPuzzleRpcRow = {
+  id: string;
+  slug: string;
+  title_cn: string;
+  title_en: string;
+  teaser_cn: string;
+  teaser_en: string;
+  riddle_cn: string;
+  riddle_en: string;
+  hint_cn: string | null;
+  hint_en: string | null;
+  unlock_note_cn: string | null;
+  unlock_note_en: string | null;
+  status: "active" | "hidden";
+  publish_at: string;
+  created_at: string;
+  is_unlocked: boolean;
+  display_status: MagicPuzzleStatus;
+  reward_energy: number;
+  has_hint: boolean;
+  hint_is_unlocked: boolean;
+  surprise_title_cn: string | null;
+  surprise_title_en: string | null;
+  surprise_note_cn: string | null;
+  surprise_note_en: string | null;
+};
 
 type MagicPuzzle = {
   id: string;
+  slug: string;
   month: string;
   publishedAt: string;
   reward: LocalizedText;
   title: LocalizedText;
+  teaser: LocalizedText;
   clue: LocalizedText;
   question: LocalizedText;
+  hint: LocalizedText;
   unlockedMessage: LocalizedText;
-  answer: string;
-  status?: MagicPuzzleStatus;
+  displayStatus: MagicPuzzleStatus;
+  isUnlocked: boolean;
+  rewardEnergy: number;
+  hasHint: boolean;
+  hintIsUnlocked: boolean;
+  surpriseTitle: LocalizedText;
+  surpriseNote: LocalizedText;
 };
 
 const ITEMS_PER_TRACK = 6;
-
-const magicPuzzles: MagicPuzzle[] = [
-  {
-    id: "orb-2026-06-20",
-    month: "2026-06",
-    publishedAt: "2026-06-20 20:00",
-    reward: {
-      cn: "+80 星光值",
-      en: "+80 starlight value",
-    },
-    title: {
-      cn: "尚未醒来的水晶球",
-      en: "The Sleeping Crystal Orb",
-    },
-    clue: {
-      cn: "这颗水晶球还没有到醒来的时间。",
-      en: "This orb has not reached its awakening time yet.",
-    },
-    question: {
-      cn: "等它亮起来之后，谜题会出现在这里。",
-      en: "When it begins to glow, the puzzle will appear here.",
-    },
-    unlockedMessage: {
-      cn: "这是一段未来才会出现的留言。",
-      en: "This is a message reserved for later.",
-    },
-    answer: "future",
-  },
-  {
-    id: "orb-2026-06-09",
-    month: "2026-06",
-    publishedAt: "2026-06-09 20:00",
-    reward: {
-      cn: "+50 星光值",
-      en: "+50 starlight value",
-    },
-    title: {
-      cn: "今晚的星光密码",
-      en: "Tonight's Starlight Code",
-    },
-    clue: {
-      cn: "第一枚星光钥匙，藏在你们第一次认真说晚安的那一天。",
-      en: "The first starlight key is hidden on the day you first truly said good night.",
-    },
-    question: {
-      cn: "输入那个只属于你们的数字暗号。",
-      en: "Enter the number code that belongs only to you two.",
-    },
-    unlockedMessage: {
-      cn: "水晶球亮起来了。这里之后可以放照片、留言、奖励或下一段谜题。",
-      en: "The orb is glowing. This area can later reveal photos, messages, rewards, or the next puzzle.",
-    },
-    answer: "520",
-    status: "new",
-  },
-  {
-    id: "orb-2026-06-07",
-    month: "2026-06",
-    publishedAt: "2026-06-07 20:00",
-    reward: {
-      cn: "+50 星光值",
-      en: "+50 starlight value",
-    },
-    title: {
-      cn: "云层后的暗号",
-      en: "The Code Behind the Clouds",
-    },
-    clue: {
-      cn: "云层不会遮住答案，只会让答案变得更像一个秘密。",
-      en: "Clouds do not hide the answer. They only make it feel more like a secret.",
-    },
-    question: {
-      cn: "这道谜题以后可以换成真正的文字、图片或密码题。",
-      en: "This puzzle can later become a real text, image, or code challenge.",
-    },
-    unlockedMessage: {
-      cn: "你找到了云层后的暗号。",
-      en: "You found the code behind the clouds.",
-    },
-    answer: "cloud",
-  },
-  {
-    id: "orb-2026-06-05",
-    month: "2026-06",
-    publishedAt: "2026-06-05 20:00",
-    reward: {
-      cn: "+50 星光值",
-      en: "+50 starlight value",
-    },
-    title: {
-      cn: "月亮写下的线索",
-      en: "The Clue Written by the Moon",
-    },
-    clue: {
-      cn: "月亮没有说出口的部分，通常写在光的边缘。",
-      en: "The part the moon did not say aloud is usually written along the edge of light.",
-    },
-    question: {
-      cn: "这里可以放第三个谜题的正文。",
-      en: "This area can hold the third puzzle body.",
-    },
-    unlockedMessage: {
-      cn: "月亮把线索交给你了。",
-      en: "The moon has handed you the clue.",
-    },
-    answer: "moon",
-  },
-  {
-    id: "orb-2026-06-03",
-    month: "2026-06",
-    publishedAt: "2026-06-03 20:00",
-    reward: {
-      cn: "+30 星光值",
-      en: "+30 starlight value",
-    },
-    title: {
-      cn: "星轨偏移三厘米",
-      en: "The Star Track Shifted",
-    },
-    clue: {
-      cn: "有些答案不是藏起来了，只是稍微偏了一点。",
-      en: "Some answers are not hidden. They are only slightly shifted.",
-    },
-    question: {
-      cn: "这里之后可以放选择题、短答题或图片线索。",
-      en: "This can later hold a multiple choice question, short answer, or image clue.",
-    },
-    unlockedMessage: {
-      cn: "星轨重新校准。",
-      en: "The star track has been realigned.",
-    },
-    answer: "star",
-  },
-  {
-    id: "orb-2026-06-01",
-    month: "2026-06",
-    publishedAt: "2026-06-01 20:00",
-    reward: {
-      cn: "+30 星光值",
-      en: "+30 starlight value",
-    },
-    title: {
-      cn: "第一段六月星轨",
-      en: "The First June Star Track",
-    },
-    clue: {
-      cn: "六月的第一颗水晶球，用来测试这个页面的星轨结构。",
-      en: "The first June orb is here to test the star track structure.",
-    },
-    question: {
-      cn: "之后这颗水晶球可以替换成真正的谜题。",
-      en: "This orb can later be replaced with a real puzzle.",
-    },
-    unlockedMessage: {
-      cn: "第一段六月星轨已点亮。",
-      en: "The first June star track is lit.",
-    },
-    answer: "june",
-  },
-  {
-    id: "orb-2026-06-00",
-    month: "2026-06",
-    publishedAt: "2026-06-01 10:00",
-    reward: {
-      cn: "+20 星光值",
-      en: "+20 starlight value",
-    },
-    title: {
-      cn: "第二段星轨测试",
-      en: "Second Track Test",
-    },
-    clue: {
-      cn: "这是第七颗水晶球，用来测试底部分段导航。",
-      en: "This seventh orb tests the bottom track pagination.",
-    },
-    question: {
-      cn: "如果当前月份超过 6 颗水晶球，就会出现下一段星轨。",
-      en: "When a month has more than 6 orbs, the next track section appears.",
-    },
-    unlockedMessage: {
-      cn: "分段星轨测试成功。",
-      en: "Track pagination test completed.",
-    },
-    answer: "7",
-  },
-  {
-    id: "orb-2026-05-20",
-    month: "2026-05",
-    publishedAt: "2026-05-20 20:00",
-    reward: {
-      cn: "+52 星光值",
-      en: "+52 starlight value",
-    },
-    title: {
-      cn: "五月的秘密水晶",
-      en: "May's Secret Crystal",
-    },
-    clue: {
-      cn: "五月适合放纪念日、照片解锁或特别留言。",
-      en: "May is suitable for anniversaries, photo unlocks, or special messages.",
-    },
-    question: {
-      cn: "这里是五月星轨里的第一颗水晶球。",
-      en: "This is the first orb in the May star track.",
-    },
-    unlockedMessage: {
-      cn: "五月的秘密已经打开。",
-      en: "May's secret has opened.",
-    },
-    answer: "may",
-  },
-];
 
 const pageCopies = {
   cn: {
@@ -267,6 +92,26 @@ const pageCopies = {
     close: "关闭",
     unlocked: "解锁内容",
     empty: "这段星历还没有水晶球。",
+    loading: "正在读取水晶球星轨……",
+    signedOut: "请先登录后进入魔法空间。",
+    forbidden: "当前身份暂时不能进入魔法空间。",
+    loadError: "魔法空间读取失败。",
+    statusHidden: "已隐藏",
+    sleepingOrbText: "这颗水晶球还在沉睡。",
+    hintLockedPreview: "线索尚未打开。进入水晶球后可花 1 星光值查看。",
+    noHintText: "这颗水晶球没有额外线索。",
+    hintLockedTitle: "线索未打开",
+    hintLockedIntro: "可以花费 1 星光值打开这颗水晶球的额外线索。",
+    unlockingHint: "正在打开……",
+    unlockHintButton: "花 1 星光值打开线索",
+    hintOpened: "线索已打开。",
+    answerReward: "答对奖励",
+    litBadge: "已点亮",
+    waitingBadge: "等待解锁",
+    litTitle: "水晶球已点亮",
+    starlightAdded: "星光值已加入爱心星球。",
+    goToStudio: "去记忆暗房",
+    continueTrack: "继续看星轨",
   },
   en: {
     title: "Magic Room",
@@ -295,6 +140,26 @@ const pageCopies = {
     close: "Close",
     unlocked: "Unlocked content",
     empty: "No crystal orbs in this archive yet.",
+    loading: "Loading crystal orbs...",
+    signedOut: "Please sign in before entering the magic room.",
+    forbidden: "Your current role cannot enter the magic room yet.",
+    loadError: "Failed to load magic room.",
+    statusHidden: "Hidden",
+    sleepingOrbText: "This crystal orb is still sleeping.",
+    hintLockedPreview: "The clue is still locked. Enter the orb to spend 1 starlight value and reveal it.",
+    noHintText: "This crystal orb has no extra clue.",
+    hintLockedTitle: "Clue locked",
+    hintLockedIntro: "Spend 1 starlight value to reveal this crystal orb's extra clue.",
+    unlockingHint: "Opening...",
+    unlockHintButton: "Spend 1 starlight value to reveal clue",
+    hintOpened: "Clue opened.",
+    answerReward: "Reward for solving",
+    litBadge: "Lit",
+    waitingBadge: "Waiting to unlock",
+    litTitle: "Crystal orb lit",
+    starlightAdded: "Starlight value has been added to Heart Planet.",
+    goToStudio: "Go to Memory Darkroom",
+    continueTrack: "Continue star track",
   },
 };
 
@@ -302,19 +167,99 @@ function getText(text: LocalizedText, lang: Lang) {
   return text[lang];
 }
 
-function isPuzzleAvailable(publishedAt: string) {
-  return new Date(publishedAt.replace(" ", "T")).getTime() <= Date.now();
+function isPuzzleAvailable(puzzle: MagicPuzzle) {
+  return puzzle.displayStatus === "available" || puzzle.displayStatus === "solved";
 }
 
 function formatDate(publishedAt: string, lang: Lang) {
-  const [date, time] = publishedAt.split(" ");
-  const [year, month, day] = date.split("-");
+  const date = new Date(publishedAt);
 
   if (lang === "cn") {
-    return `${year}.${month}.${day} ${time}`;
+    return `北京时间 ${new Intl.DateTimeFormat("zh-CN", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)}`;
   }
 
-  return `${month}/${day}/${year} ${time}`;
+  return `Beijing time ${new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date)}`;
+}
+
+function getBeijingMonthValue(value: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "2026";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+
+  return `${year}-${month}`;
+}
+
+function mapMagicPuzzleRow(row: MagicPuzzleRpcRow): MagicPuzzle {
+  return {
+    id: row.id,
+    slug: row.slug,
+    month: getBeijingMonthValue(row.publish_at),
+    publishedAt: row.publish_at,
+    reward: {
+      cn: `+${row.reward_energy} 星光值`,
+      en: `+${row.reward_energy} starlight value`,
+    },
+    rewardEnergy: row.reward_energy,
+    hasHint: Boolean(row.has_hint),
+    hintIsUnlocked: Boolean(row.hint_is_unlocked),
+    surpriseTitle: {
+      cn: row.surprise_title_cn ?? "记忆暗房提醒",
+      en: row.surprise_title_en ?? "Memory Darkroom Notice",
+    },
+    surpriseNote: {
+      cn:
+        row.surprise_note_cn ??
+        "一段新的记忆可能已经在暗房里醒来。",
+      en:
+        row.surprise_note_en ??
+        "A new memory may have awakened in the darkroom.",
+    },
+    title: {
+      cn: row.title_cn,
+      en: row.title_en,
+    },
+    teaser: {
+      cn: row.teaser_cn,
+      en: row.teaser_en,
+    },
+    clue: {
+      cn: row.hint_cn ?? "",
+      en: row.hint_en ?? "",
+    },
+    question: {
+      cn: row.riddle_cn,
+      en: row.riddle_en,
+    },
+    hint: {
+      cn: row.hint_cn ?? "",
+      en: row.hint_en ?? "",
+    },
+    unlockedMessage: {
+      cn: row.unlock_note_cn ?? "水晶球已经被点亮。",
+      en: row.unlock_note_en ?? "The crystal orb is lit.",
+    },
+    displayStatus: row.display_status,
+    isUnlocked: row.is_unlocked,
+  };
 }
 
 function getMonthLabel(monthValue: string, lang: Lang) {
@@ -343,98 +288,229 @@ function getMonthLabel(monthValue: string, lang: Lang) {
   return `${englishMonths[monthNumber - 1]} ${year} · Star Track`;
 }
 
-function normalizeAnswer(value: string) {
-  return value.trim().toLowerCase();
-}
+  export default function MagicPage() {
+    const { lang, t } = useLanguage();
+    const page = pageCopies[lang];
+    const supabase = useMemo(() => createClient(), []);
 
-export default function MagicPage() {
-  const { lang, t } = useLanguage();
-  const page = pageCopies[lang];
+    const [magicPuzzles, setMagicPuzzles] = useState<MagicPuzzle[]>([]);
+    const [magicLoadStatus, setMagicLoadStatus] =
+      useState<MagicLoadStatus>("loading");
+    const [magicLoadMessage, setMagicLoadMessage] = useState("");
 
-  const monthOptions = useMemo(() => {
-    return Array.from(new Set(magicPuzzles.map((puzzle) => puzzle.month))).sort(
-      (a, b) => b.localeCompare(a)
+    const monthOptions = useMemo(() => {
+      return Array.from(new Set(magicPuzzles.map((puzzle) => puzzle.month))).sort(
+        (a, b) => b.localeCompare(a),
+      );
+    }, [magicPuzzles]);
+
+    const [selectedMonth, setSelectedMonth] = useState("");
+    const [currentTrack, setCurrentTrack] = useState(1);
+    const [jumpTrack, setJumpTrack] = useState("1");
+    const [selectedPuzzleId, setSelectedPuzzleId] = useState<string | null>(null);
+    const [answerInput, setAnswerInput] = useState("");
+    const [answerResult, setAnswerResult] = useState<"correct" | "wrong" | null>(
+      null,
     );
-  }, []);
+    const [answerMessage, setAnswerMessage] = useState("");
+    const [isUnlockingHint, setIsUnlockingHint] = useState(false);
+    const [hintMessage, setHintMessage] = useState("");
 
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0] ?? "");
-  const [currentTrack, setCurrentTrack] = useState(1);
-  const [jumpTrack, setJumpTrack] = useState("1");
-  const [selectedPuzzleId, setSelectedPuzzleId] = useState<string | null>(null);
-  const [answerInput, setAnswerInput] = useState("");
-  const [answerResult, setAnswerResult] = useState<"correct" | "wrong" | null>(
-    null
-  );
-  const [solvedPuzzleIds, setSolvedPuzzleIds] = useState<string[]>([]);
+    const selectedPuzzle =
+      magicPuzzles.find((puzzle) => puzzle.id === selectedPuzzleId) ?? null;
 
-  const selectedPuzzle =
-    magicPuzzles.find((puzzle) => puzzle.id === selectedPuzzleId) ?? null;
+    const filteredPuzzles = useMemo(() => {
+      return magicPuzzles
+        .filter((puzzle) => puzzle.month === selectedMonth)
+        .sort(
+          (a, b) =>
+            new Date(b.publishedAt).getTime() -
+            new Date(a.publishedAt).getTime(),
+        );
+    }, [magicPuzzles, selectedMonth]);
 
-  const filteredPuzzles = useMemo(() => {
-    return magicPuzzles
-      .filter((puzzle) => puzzle.month === selectedMonth)
-      .sort(
-        (a, b) =>
-          new Date(b.publishedAt.replace(" ", "T")).getTime() -
-          new Date(a.publishedAt.replace(" ", "T")).getTime()
-      );
-  }, [selectedMonth]);
+    const totalTracks = Math.max(
+      1,
+      Math.ceil(filteredPuzzles.length / ITEMS_PER_TRACK),
+    );
 
-  const totalTracks = Math.max(
-    1,
-    Math.ceil(filteredPuzzles.length / ITEMS_PER_TRACK)
-  );
+    const visiblePuzzles = filteredPuzzles.slice(
+      (currentTrack - 1) * ITEMS_PER_TRACK,
+      currentTrack * ITEMS_PER_TRACK,
+    );
 
-  const visiblePuzzles = filteredPuzzles.slice(
-    (currentTrack - 1) * ITEMS_PER_TRACK,
-    currentTrack * ITEMS_PER_TRACK
-  );
+    async function loadMagicPuzzles() {
+      setMagicLoadStatus("loading");
+      setMagicLoadMessage("");
 
-  useEffect(() => {
-    setCurrentTrack(1);
-    setJumpTrack("1");
-    setSelectedPuzzleId(null);
-  }, [selectedMonth]);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    if (currentTrack > totalTracks) {
-      setCurrentTrack(totalTracks);
-      setJumpTrack(String(totalTracks));
+      if (userError) {
+        setMagicLoadStatus("error");
+        setMagicLoadMessage(userError.message);
+        setMagicPuzzles([]);
+        return;
+      }
+
+      if (!user) {
+        setMagicLoadStatus("signedOut");
+        setMagicPuzzles([]);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc("get_magic_puzzles");
+
+      if (error) {
+        const message = error.message;
+
+        if (message.includes("当前身份")) {
+          setMagicLoadStatus("forbidden");
+        } else {
+          setMagicLoadStatus("error");
+        }
+
+        setMagicLoadMessage(message);
+        setMagicPuzzles([]);
+        return;
+      }
+
+      const rows = (data ?? []) as MagicPuzzleRpcRow[];
+
+      setMagicPuzzles(rows.map(mapMagicPuzzleRow));
+      setMagicLoadStatus("allowed");
     }
-  }, [currentTrack, totalTracks]);
 
-  function openPuzzle(puzzle: MagicPuzzle) {
-    if (!isPuzzleAvailable(puzzle.publishedAt)) return;
+    useEffect(() => {
+      void loadMagicPuzzles();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    setSelectedPuzzleId(puzzle.id);
-    setAnswerInput("");
-    setAnswerResult(null);
-  }
+    useEffect(() => {
+      if (monthOptions.length === 0) {
+        setSelectedMonth("");
+        return;
+      }
 
-  function closePuzzle() {
-    setSelectedPuzzleId(null);
-    setAnswerInput("");
-    setAnswerResult(null);
-  }
+      if (!selectedMonth || !monthOptions.includes(selectedMonth)) {
+        setSelectedMonth(monthOptions[0]);
+      }
+    }, [monthOptions, selectedMonth]);
 
-  function submitAnswer() {
-    if (!selectedPuzzle) return;
+    useEffect(() => {
+      setCurrentTrack(1);
+      setJumpTrack("1");
+      setSelectedPuzzleId(null);
+    }, [selectedMonth]);
 
-    const isCorrect =
-      normalizeAnswer(answerInput) === normalizeAnswer(selectedPuzzle.answer);
+    useEffect(() => {
+      if (currentTrack > totalTracks) {
+        setCurrentTrack(totalTracks);
+        setJumpTrack(String(totalTracks));
+      }
+    }, [currentTrack, totalTracks]);
 
-    if (isCorrect) {
-      setAnswerResult("correct");
-      setSolvedPuzzleIds((current) =>
-        current.includes(selectedPuzzle.id)
-          ? current
-          : [...current, selectedPuzzle.id]
-      );
-    } else {
+    function openPuzzle(puzzle: MagicPuzzle) {
+      if (!isPuzzleAvailable(puzzle)) return;
+
+      setSelectedPuzzleId(puzzle.id);
+      setAnswerInput("");
+      setAnswerResult(null);
+      setAnswerMessage("");
+      setHintMessage("");
+      setIsUnlockingHint(false);
+    }
+
+    function closePuzzle() {
+      setSelectedPuzzleId(null);
+      setAnswerInput("");
+      setAnswerResult(null);
+      setAnswerMessage("");
+      setHintMessage("");
+      setIsUnlockingHint(false);
+    }
+
+    async function submitAnswer() {
+      if (!selectedPuzzle) return;
+
+      setAnswerResult(null);
+      setAnswerMessage("");
+
+      const { data, error } = await supabase.rpc("submit_magic_answer", {
+        puzzle_id_input: selectedPuzzle.id,
+        answer_input: answerInput,
+      });
+
+      if (error) {
+        setAnswerResult("wrong");
+        setAnswerMessage(error.message);
+        return;
+      }
+
+      const result = data?.[0];
+
+      if (result?.is_correct) {
+        setAnswerResult("correct");
+        setAnswerMessage(result.result_message ?? page.correct);
+        await loadMagicPuzzles();
+        return;
+      }
+
       setAnswerResult("wrong");
+      setAnswerMessage(result?.result_message ?? page.wrong);
     }
-  }
 
+    async function unlockHint() {
+      if (!selectedPuzzle) return;
+
+      setIsUnlockingHint(true);
+      setHintMessage("");
+
+      const { data, error } = await supabase.rpc("unlock_magic_hint", {
+        puzzle_id_input: selectedPuzzle.id,
+      });
+
+      if (error) {
+        setHintMessage(error.message);
+        setIsUnlockingHint(false);
+        return;
+      }
+
+      const result = data?.[0] as
+        | {
+            hint_cn: string | null;
+            hint_en: string | null;
+            result_message: string | null;
+          }
+        | undefined;
+
+      setMagicPuzzles((current) =>
+        current.map((puzzle) => {
+          if (puzzle.id !== selectedPuzzle.id) return puzzle;
+
+          const nextHint = {
+            cn: result?.hint_cn ?? puzzle.clue.cn,
+            en: result?.hint_en ?? puzzle.clue.en,
+          };
+
+          return {
+            ...puzzle,
+            clue: nextHint,
+            hint: nextHint,
+            hintIsUnlocked: true,
+          };
+        }),
+      );
+
+      setHintMessage(result?.result_message ?? page.hintOpened);
+
+      await loadMagicPuzzles();
+
+      setIsUnlockingHint(false);
+    }
+  
   function handleJumpTrack() {
     const parsed = Number(jumpTrack);
 
@@ -462,7 +538,7 @@ export default function MagicPage() {
               {page.chooseArchive}
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-white md:text-3xl">
-              {getMonthLabel(selectedMonth, lang)}
+              {selectedMonth ? getMonthLabel(selectedMonth, lang) : page.empty}
             </h2>
           </div>
 
@@ -482,6 +558,15 @@ export default function MagicPage() {
           </label>
         </div>
 
+        {magicLoadStatus !== "allowed" ? (
+          <div className="mb-6 rounded-[2rem] border border-white/10 bg-white/10 p-5 text-sm text-slate-200">
+            {magicLoadStatus === "loading" ? page.loading : null}
+            {magicLoadStatus === "signedOut" ? page.signedOut : null}
+            {magicLoadStatus === "forbidden" ? page.forbidden : null}
+            {magicLoadStatus === "error" ? `${page.loadError} ${magicLoadMessage}` : null}
+          </div>
+        ) : null}
+
         <section className="magic-track-panel" aria-label={page.trackLabel}>
           <div className="magic-track-line" />
 
@@ -492,17 +577,18 @@ export default function MagicPage() {
           ) : (
             <div className="relative z-10 grid gap-10 py-4">
               {visiblePuzzles.map((puzzle, index) => {
-                const isAvailable = isPuzzleAvailable(puzzle.publishedAt);
-                const isSolved = solvedPuzzleIds.includes(puzzle.id);
+                const isAvailable = isPuzzleAvailable(puzzle);
+                const isSolved = puzzle.displayStatus === "solved";
                 const isLocked = !isAvailable;
 
-                const statusLabel = isLocked
-                  ? page.statusLocked
-                  : isSolved
-                    ? page.statusSolved
-                    : puzzle.status === "new"
-                      ? page.statusNew
-                      : page.statusNormal;
+                const statusLabel =
+                  puzzle.displayStatus === "sleeping"
+                    ? page.statusLocked
+                    : puzzle.displayStatus === "hidden"
+                      ? page.statusHidden
+                      : isSolved
+                        ? page.statusSolved
+                        : page.statusNormal;
 
                 const nodeClassName = [
                   "magic-orb-node",
@@ -515,7 +601,7 @@ export default function MagicPage() {
                   "magic-crystal-orb",
                   isLocked ? "magic-crystal-orb-locked" : "",
                   isSolved ? "magic-crystal-orb-solved" : "",
-                  puzzle.status === "new" && !isSolved
+                  puzzle.displayStatus === "available" && !isSolved
                     ? "magic-crystal-orb-new"
                     : "",
                 ].join(" ");
@@ -547,7 +633,7 @@ export default function MagicPage() {
                       </h3>
 
                       <p className="mt-3 text-sm leading-6 text-slate-300">
-                        {getText(puzzle.clue, lang)}
+                        {getText(puzzle.teaser, lang)}
                       </p>
 
                       <p className="mt-3 text-sm text-amber-100/90">
@@ -647,6 +733,16 @@ export default function MagicPage() {
                 </h2>
               </div>
 
+              <div className="mt-4 flex flex-wrap gap-2 text-sm">
+                <span className="rounded-full border border-amber-200/20 bg-amber-100/10 px-3 py-1 text-amber-100">
+                  {page.answerReward} {getText(selectedPuzzle.reward, lang)}
+                </span>
+
+                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-slate-200">
+                  {selectedPuzzle.displayStatus === "solved" ? page.litBadge : page.waitingBadge}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={closePuzzle}
@@ -654,15 +750,6 @@ export default function MagicPage() {
               >
                 {page.close}
               </button>
-            </div>
-
-            <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-white/10 p-5">
-              <p className="text-sm uppercase tracking-[0.24em] text-violet-200">
-                {page.clue}
-              </p>
-              <p className="mt-3 leading-7 text-slate-100">
-                {getText(selectedPuzzle.clue, lang)}
-              </p>
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-5">
@@ -674,13 +761,62 @@ export default function MagicPage() {
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
+            {selectedPuzzle.displayStatus === "solved" ? (
+              <div className="mt-6 grid gap-4 rounded-2xl border border-emerald-200/30 bg-emerald-200/10 p-5">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">
+                    {page.litTitle}
+                  </p>
+                  <p className="mt-3 leading-7 text-slate-100">
+                    {getText(selectedPuzzle.unlockedMessage, lang)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200/20 bg-amber-100/10 p-4">
+                  <p className="text-sm font-semibold text-amber-100">
+                    +{selectedPuzzle.rewardEnergy} 星光值
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                    {page.starlightAdded}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-violet-200/20 bg-violet-100/10 p-4">
+                  <p className="text-sm font-semibold text-violet-100">
+                    {getText(selectedPuzzle.surpriseTitle, lang)}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                    {getText(selectedPuzzle.surpriseNote, lang)}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    href="/studio"
+                    className="rounded-full bg-violet-100 px-5 py-2.5 text-sm font-medium text-violet-950 transition hover:bg-white"
+                  >
+                    {page.goToStudio}
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={closePuzzle}
+                    className="rounded-full border border-white/15 bg-white/10 px-5 py-2.5 text-sm text-white transition hover:bg-white hover:text-slate-950"
+                  >
+                    {page.continueTrack}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {selectedPuzzle.displayStatus !== "solved" ? (
+              <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
               <input
                 value={answerInput}
                 onChange={(event) => setAnswerInput(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    submitAnswer();
+                    void submitAnswer();
                   }
                 }}
                 placeholder={page.answerPlaceholder}
@@ -689,12 +825,13 @@ export default function MagicPage() {
 
               <button
                 type="button"
-                onClick={submitAnswer}
+                onClick={() => void submitAnswer()}
                 className="rounded-full bg-violet-100 px-6 py-3 font-medium text-violet-950 transition hover:bg-white"
               >
                 {page.submitAnswer}
               </button>
             </div>
+            ) : null}
 
             {answerResult ? (
               <div
@@ -706,17 +843,38 @@ export default function MagicPage() {
                 ].join(" ")}
               >
                 <p className="font-medium">
-                  {answerResult === "correct" ? page.correct : page.wrong}
+                  {answerMessage ||
+                    (answerResult === "correct" ? page.correct : page.wrong)}
                 </p>
 
                 {answerResult === "correct" ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
-                    <p className="text-sm uppercase tracking-[0.24em] text-amber-100">
-                      {page.unlocked}
-                    </p>
-                    <p className="mt-3 leading-7 text-slate-100">
-                      {getText(selectedPuzzle.unlockedMessage, lang)}
-                    </p>
+                  <div className="mt-4 grid gap-4">
+                    <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                      <p className="text-sm uppercase tracking-[0.24em] text-amber-100">
+                        {page.unlocked}
+                      </p>
+                      <p className="mt-3 leading-7 text-slate-100">
+                        {getText(selectedPuzzle.unlockedMessage, lang)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-200/20 bg-amber-100/10 p-4">
+                      <p className="text-sm font-semibold text-amber-100">
+                        +{selectedPuzzle.rewardEnergy} 星光值
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-200">
+                        星光值已加入爱心星球。
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-violet-200/20 bg-violet-100/10 p-4">
+                      <p className="text-sm font-semibold text-violet-100">
+                        {getText(selectedPuzzle.surpriseTitle, lang)}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-200">
+                        {getText(selectedPuzzle.surpriseNote, lang)}
+                      </p>
+                    </div>
                   </div>
                 ) : null}
               </div>

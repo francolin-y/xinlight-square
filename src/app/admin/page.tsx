@@ -30,6 +30,19 @@ type RedemptionRow = {
 
 type GiftType = "virtual" | "physical" | "date_plan";
 
+type MagicPuzzleStatus = "active" | "hidden";
+
+type MagicPuzzleRow = {
+  id: string;
+  slug: string;
+  title_cn: string;
+  title_en: string;
+  status: MagicPuzzleStatus;
+  publish_at: string;
+  reward_energy: number;
+  created_at: string;
+};
+
 type MessageRow = {
   id: string;
   content: string;
@@ -51,6 +64,30 @@ function formatDateTime(value: string | null) {
   if (!value) return "未设置";
 
   return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatTorontoTime(value: string | null) {
+  if (!value) return "未设置";
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "America/Toronto",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatBeijingTime(value: string | null) {
+  if (!value) return "未设置";
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -113,6 +150,26 @@ export default function AdminPage() {
   const [newGiftImageFile, setNewGiftImageFile] = useState<File | null>(null);
   const [isPublishingGift, setIsPublishingGift] = useState(false);
   const [publishGiftStatus, setPublishGiftStatus] = useState("");
+  
+  const [magicSlug, setMagicSlug] = useState("");
+  const [magicTitle, setMagicTitle] = useState("");
+  const [magicRiddle, setMagicRiddle] = useState("");
+  const [magicHint, setMagicHint] = useState("");
+  const [magicUnlockNote, setMagicUnlockNote] = useState("");
+  const [magicAnswer, setMagicAnswer] = useState("");
+  const [magicStatus, setMagicStatus] = useState<MagicPuzzleStatus>("active");
+  const [magicPublishAt, setMagicPublishAt] = useState(
+    toDatetimeLocalInputValue(new Date().toISOString()),
+  );
+  const [magicRewardEnergy, setMagicRewardEnergy] = useState("3");
+  const [magicSurpriseTitle, setMagicSurpriseTitle] = useState("");
+  const [magicSurpriseNote, setMagicSurpriseNote] = useState("");
+  const [isCreatingMagicPuzzle, setIsCreatingMagicPuzzle] = useState(false);
+  const [magicPuzzleStatus, setMagicPuzzleStatus] = useState("");
+  const [recentMagicPuzzles, setRecentMagicPuzzles] = useState<MagicPuzzleRow[]>(
+    [],
+  );
+  const [magicTeaser, setMagicTeaser] = useState("");
 
   async function uploadGiftImage(file: File, giftId: string) {
     const rawExtension = file.name.split(".").pop() ?? "png";
@@ -185,6 +242,7 @@ export default function AdminPage() {
       loadRecentRedemptions(),
       loadRecentMessages(),
       loadRecentEnergyTransactions(),
+      loadRecentMagicPuzzles(),
     ]);
   }
 
@@ -329,6 +387,66 @@ export default function AdminPage() {
     }
   }
 
+  async function handleCreateMagicPuzzle() {
+    const title = magicTitle.trim();
+    const riddle = magicRiddle.trim();
+    const answer = magicAnswer.trim();
+    const parsedRewardEnergy = Number(magicRewardEnergy);
+
+    if (!title || !riddle || !answer) {
+        setMagicPuzzleStatus("请填写标题、谜题正文和答案。");
+        return;
+    }
+
+    setIsCreatingMagicPuzzle(true);
+    setMagicPuzzleStatus("正在创建魔法谜题……");
+
+    const publishAtIso = magicPublishAt
+        ? new Date(magicPublishAt).toISOString()
+        : null;
+
+    const { error } = await supabase.rpc("create_magic_puzzle", {
+        slug_input: magicSlug.trim(),
+        title_input: title,
+        teaser_input: magicTeaser.trim(),
+        riddle_input: riddle,
+        hint_input: magicHint.trim(),
+        unlock_note_input: magicUnlockNote.trim(),
+        answer_input: answer,
+        status_input: magicStatus,
+        publish_at_input: publishAtIso,
+        reward_energy_input: Number.isFinite(parsedRewardEnergy)
+            ? Math.max(0, Math.round(parsedRewardEnergy))
+            : 3,
+        surprise_title_input: magicSurpriseTitle.trim(),
+        surprise_note_input: magicSurpriseNote.trim(),
+    });
+
+    if (error) {
+        setMagicPuzzleStatus(`创建失败：${error.message}`);
+        setIsCreatingMagicPuzzle(false);
+        return;
+    }
+
+    setMagicSlug("");
+    setMagicTitle("");
+    setMagicRiddle("");
+    setMagicTeaser("");
+    setMagicHint("");
+    setMagicUnlockNote("");
+    setMagicAnswer("");
+    setMagicStatus("active");
+    setMagicPublishAt(toDatetimeLocalInputValue(new Date().toISOString()));
+    setMagicPuzzleStatus("魔法谜题已创建。");
+    setMagicRewardEnergy("3");
+    setMagicSurpriseTitle("");
+    setMagicSurpriseNote("");
+
+    await loadRecentMagicPuzzles();
+
+    setIsCreatingMagicPuzzle(false);
+  }
+
   async function loadRecentRedemptions() {
     const { data: redemptionRows, error } = await supabase
       .from("redemptions")
@@ -448,6 +566,21 @@ export default function AdminPage() {
     }
 
     setEnergyTransactions((data ?? []) as EnergyTransactionRow[]);
+  }
+
+  async function loadRecentMagicPuzzles() {
+    const { data, error } = await supabase
+        .from("magic_puzzles")
+        .select("id, slug, title_cn, status, publish_at, reward_energy, created_at")
+        .order("publish_at", { ascending: false })
+        .limit(6);
+
+    if (error) {
+        setErrorMessage(error.message);
+        return;
+    }
+
+    setRecentMagicPuzzles((data ?? []) as MagicPuzzleRow[]);
   }
 
   useEffect(() => {
@@ -646,7 +779,207 @@ export default function AdminPage() {
                 <p className="text-sm text-amber-100">{publishGiftStatus}</p>
                 ) : null}
             </div>
-            </section>
+        </section>
+
+        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+            <div className="flex flex-col gap-2">
+                <p className="text-sm uppercase tracking-[0.3em] text-violet-200/80">
+                Magic Puzzle
+                </p>
+                <h2 className="text-xl font-semibold">创建魔法谜题</h2>
+                <p className="text-sm text-stone-400">
+                谜题会按上线时间出现在魔法空间。未到时间时，水晶球会保持沉睡。
+                </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">谜题标题</span>
+                <input
+                    value={magicTitle}
+                    onChange={(event) => setMagicTitle(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    placeholder="例如：月亮写下的线索"
+                />
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">Slug，可选</span>
+                <input
+                    value={magicSlug}
+                    onChange={(event) => setMagicSlug(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    placeholder="例如：moon-clue-001"
+                />
+                </label>
+
+                <label className="grid gap-2">
+                    <span className="text-sm text-stone-300">上线时间</span>
+                    <input
+                        type="datetime-local"
+                        value={magicPublishAt}
+                        onChange={(event) => setMagicPublishAt(event.target.value)}
+                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    />
+                    <span className="text-xs text-stone-500">
+                        这里按你当前设备时区填写；保存后会转换成绝对时间。后台会同时显示多伦多时间和北京时间。
+                    </span>
+                </label>
+
+                <label className="grid gap-2">
+                    <span className="text-sm text-stone-300">答对奖励星光值</span>
+                    <input
+                        type="number"
+                        min="0"
+                        value={magicRewardEnergy}
+                        onChange={(event) => setMagicRewardEnergy(event.target.value)}
+                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    />
+                    <span className="text-xs text-stone-500">
+                        默认 3。答对后只奖励第一次。
+                    </span>
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">状态</span>
+                <select
+                    value={magicStatus}
+                    onChange={(event) =>
+                    setMagicStatus(event.target.value as MagicPuzzleStatus)
+                    }
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                >
+                    <option value="active">开放</option>
+                    <option value="hidden">隐藏</option>
+                </select>
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm text-stone-300">水晶球外层预告</span>
+                    <textarea
+                        value={magicTeaser}
+                        onChange={(event) => setMagicTeaser(event.target.value)}
+                        className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                        placeholder="例如：这颗水晶球里藏着一段和晚安有关的秘密。"
+                    />
+                    <span className="text-xs text-stone-500">
+                        这段会显示在水晶球外层，不是谜题正文，也不是付费线索。
+                    </span>
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">谜题正文</span>
+                <textarea
+                    value={magicRiddle}
+                    onChange={(event) => setMagicRiddle(event.target.value)}
+                    className="min-h-28 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    placeholder="写下线索、问题或谜面。"
+                />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">提示，可选</span>
+                <textarea
+                    value={magicHint}
+                    onChange={(event) => setMagicHint(event.target.value)}
+                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    placeholder="答错时可以展示的提示。"
+                />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm text-stone-300">解锁后文案，可选</span>
+                    <textarea
+                        value={magicUnlockNote}
+                        onChange={(event) => setMagicUnlockNote(event.target.value)}
+                        className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                        placeholder="答对后显示的话。"
+                    />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm text-stone-300">暗房惊喜标题，可选</span>
+                    <input
+                        value={magicSurpriseTitle}
+                        onChange={(event) => setMagicSurpriseTitle(event.target.value)}
+                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                        placeholder="例如：记忆暗房已解锁"
+                    />
+                    </label>
+
+                    <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm text-stone-300">暗房惊喜提醒，可选</span>
+                    <textarea
+                        value={magicSurpriseNote}
+                        onChange={(event) => setMagicSurpriseNote(event.target.value)}
+                        className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                        placeholder="例如：日光底片里有一张新的照片醒来了，去记忆暗房看看。"
+                    />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">正确答案</span>
+                <input
+                    value={magicAnswer}
+                    onChange={(event) => setMagicAnswer(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
+                    placeholder="例如：520"
+                />
+                <span className="text-xs text-stone-500">
+                    答案会进入 magic_puzzle_answers，不会展示给女主人公。
+                </span>
+                </label>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                type="button"
+                onClick={() => void handleCreateMagicPuzzle()}
+                disabled={isCreatingMagicPuzzle}
+                className="rounded-full border border-violet-200/40 bg-violet-100/10 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                {isCreatingMagicPuzzle ? "正在创建……" : "创建魔法谜题"}
+                </button>
+
+                {magicPuzzleStatus ? (
+                <p className="text-sm text-violet-100">{magicPuzzleStatus}</p>
+                ) : null}
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h3 className="text-sm font-semibold text-stone-200">最近谜题</h3>
+
+                {recentMagicPuzzles.length === 0 ? (
+                <p className="mt-3 text-sm text-stone-500">暂无魔法谜题。</p>
+                ) : (
+                <div className="mt-3 grid gap-3">
+                    {recentMagicPuzzles.map((puzzle) => (
+                    <div
+                        key={puzzle.id}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                    >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold text-stone-100">
+                            {puzzle.title_cn}
+                            </p>
+                            <p className="mt-1 text-xs text-stone-500">
+                                {puzzle.slug} · 奖励 +{puzzle.reward_energy} · 多伦多{" "}
+                                {formatTorontoTime(puzzle.publish_at)} · 北京{" "}
+                                {formatBeijingTime(puzzle.publish_at)}
+                            </p>
+                        </div>
+
+                        <span className="rounded-full border border-violet-200/20 px-3 py-1 text-xs text-violet-100">
+                            {puzzle.status === "active" ? "开放" : "隐藏"}
+                        </span>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+                )}
+            </div>
+        </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
