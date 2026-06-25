@@ -29,6 +29,34 @@ type RedemptionRow = {
 };
 
 type GiftType = "virtual" | "physical" | "date_plan";
+type StudioMediaType = "image" | "video";
+type StudioCategory = "sunlight" | "heartbeat" | "rose" | "bloopers";
+type StudioUnlockMode = "always" | "magic_puzzle" | "manual" | "password";
+type StudioItemStatus = "active" | "hidden";
+
+type StudioItemRow = {
+  id: string;
+  title_cn: string;
+  title_en: string;
+  description_cn: string | null;
+  description_en: string | null;
+  teaser_cn: string | null;
+  teaser_en: string | null;
+  unlocked_note_cn: string | null;
+  unlocked_note_en: string | null;
+  media_type: StudioMediaType;
+  category: StudioCategory;
+  unlock_mode: StudioUnlockMode;
+  status: StudioItemStatus;
+  storage_path: string | null;
+  thumbnail_path: string | null;
+  required_puzzle_id: string | null;
+  required_puzzle_title_cn: string | null;
+  required_puzzle_title_en: string | null;
+  sort_order: number;
+  created_at: string;
+  is_unlocked: boolean;
+};
 
 type MagicPuzzleStatus = "active" | "hidden";
 
@@ -170,7 +198,45 @@ export default function AdminPage() {
     [],
   );
   const [magicTeaser, setMagicTeaser] = useState("");
+  const [studioTitle, setStudioTitle] = useState("");
+  const [studioDescription, setStudioDescription] = useState("");
+  const [studioTeaser, setStudioTeaser] = useState("");
+  const [studioUnlockedNote, setStudioUnlockedNote] = useState("");
+  const [studioCategory, setStudioCategory] =
+    useState<StudioCategory>("sunlight");
+  const [studioUnlockMode, setStudioUnlockMode] =
+    useState<StudioUnlockMode>("always");
+  const [studioRequiredPuzzleId, setStudioRequiredPuzzleId] = useState("");
+  const [studioSortOrder, setStudioSortOrder] = useState("0");
+  const [studioImageFile, setStudioImageFile] = useState<File | null>(null);
+  const [isCreatingStudioItem, setIsCreatingStudioItem] = useState(false);
+  const [studioItemStatus, setStudioItemStatus] = useState("");
+  const [recentStudioItems, setRecentStudioItems] = useState<StudioItemRow[]>([]);
 
+  const [editingStudioItemId, setEditingStudioItemId] = useState<string | null>(
+    null,
+  );
+  const [editStudioTitle, setEditStudioTitle] = useState("");
+  const [editStudioDescription, setEditStudioDescription] = useState("");
+  const [editStudioTeaser, setEditStudioTeaser] = useState("");
+  const [editStudioUnlockedNote, setEditStudioUnlockedNote] = useState("");
+  const [editStudioCategory, setEditStudioCategory] =
+    useState<StudioCategory>("sunlight");
+  const [editStudioUnlockMode, setEditStudioUnlockMode] =
+    useState<StudioUnlockMode>("always");
+  const [editStudioRequiredPuzzleId, setEditStudioRequiredPuzzleId] =
+    useState("");
+  const [editStudioSortOrder, setEditStudioSortOrder] = useState("0");
+  const [editStudioStatus, setEditStudioStatus] =
+    useState<StudioItemStatus>("active");
+  const [savingStudioItemId, setSavingStudioItemId] = useState<string | null>(
+    null,
+  );
+  const [deletingStudioItemId, setDeletingStudioItemId] = useState<string | null>(
+    null,
+  );
+  const [studioManageStatus, setStudioManageStatus] = useState("");
+  
   async function uploadGiftImage(file: File, giftId: string) {
     const rawExtension = file.name.split(".").pop() ?? "png";
     const safeExtension =
@@ -193,6 +259,29 @@ export default function AdminPage() {
 
     return data.publicUrl;
     }
+
+  async function uploadStudioMedia(file: File, userId: string) {
+    const rawExtension = file.name.split(".").pop() ?? "png";
+    const safeExtension =
+        rawExtension.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+
+    const folder = file.type.startsWith("video/") ? "videos" : "images";
+    const randomPart = Math.random().toString(36).slice(2);
+    const filePath = `${folder}/${userId}/${Date.now()}-${randomPart}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from("studio-media")
+        .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        });
+
+    if (uploadError) {
+        throw uploadError;
+    }
+
+    return filePath;
+  }
 
   async function loadAdminDashboard() {
     setAccessStatus("loading");
@@ -238,11 +327,12 @@ export default function AdminPage() {
     setAccessStatus("allowed");
 
     await Promise.all([
-      loadPendingGifts(),
-      loadRecentRedemptions(),
-      loadRecentMessages(),
-      loadRecentEnergyTransactions(),
-      loadRecentMagicPuzzles(),
+        loadPendingGifts(),
+        loadRecentRedemptions(),
+        loadRecentMessages(),
+        loadRecentEnergyTransactions(),
+        loadRecentMagicPuzzles(),
+        loadRecentStudioItems(),
     ]);
   }
 
@@ -447,6 +537,237 @@ export default function AdminPage() {
     setIsCreatingMagicPuzzle(false);
   }
 
+  async function handleCreateStudioItem() {
+    const title = studioTitle.trim();
+    const description = studioDescription.trim();
+    const teaser = studioTeaser.trim();
+    const unlockedNote = studioUnlockedNote.trim();
+    const parsedSortOrder = Number(studioSortOrder);
+
+    if (!title) {
+        setStudioItemStatus("请填写暗房内容标题。");
+        return;
+    }
+
+    if (!studioImageFile) {
+        setStudioItemStatus("请先选择一张图片。");
+        return;
+    }
+
+    if (studioUnlockMode === "magic_puzzle" && !studioRequiredPuzzleId) {
+        setStudioItemStatus("Magic 解锁内容需要绑定一个谜题。");
+        return;
+    }
+
+    setIsCreatingStudioItem(true);
+    setStudioItemStatus("正在上传暗房内容……");
+
+    try {
+        const {
+        data: { user },
+        error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+        setStudioItemStatus(`上传失败：${userError?.message ?? "请先登录。"}`);
+        return;
+        }
+
+        const storagePath = await uploadStudioMedia(studioImageFile, user.id);
+
+        const studioMediaType: StudioMediaType = studioImageFile.type.startsWith(
+            "video/",
+            )
+            ? "video"
+            : "image";
+
+        const { error } = await supabase.rpc("create_studio_item", {
+            title_input: title,
+            description_input: description,
+            teaser_input: teaser,
+            unlocked_note_input: unlockedNote,
+            media_type_input: studioMediaType,
+            category_input: studioCategory,
+            unlock_mode_input: studioUnlockMode,
+            required_puzzle_id_input:
+                studioUnlockMode === "magic_puzzle" ? studioRequiredPuzzleId : null,
+            storage_path_input: storagePath,
+            thumbnail_path_input: null,
+            sort_order_input: Number.isFinite(parsedSortOrder)
+                ? Math.round(parsedSortOrder)
+                : 0,
+        });
+
+        if (error) {
+        setStudioItemStatus(`创建失败：${error.message}`);
+        return;
+        }
+
+        setStudioTitle("");
+        setStudioDescription("");
+        setStudioTeaser("");
+        setStudioUnlockedNote("");
+        setStudioCategory("sunlight");
+        setStudioUnlockMode("always");
+        setStudioRequiredPuzzleId("");
+        setStudioSortOrder("0");
+        setStudioImageFile(null);
+        setStudioItemStatus("暗房内容已创建。");
+
+        await loadRecentStudioItems();
+    } catch (createError) {
+        setStudioItemStatus(
+        `创建失败：${
+            createError instanceof Error ? createError.message : "Unknown error"
+        }`,
+        );
+    } finally {
+        setIsCreatingStudioItem(false);
+    }
+  }
+
+  function startEditStudioItem(item: StudioItemRow) {
+    setEditingStudioItemId(item.id);
+    setEditStudioTitle(item.title_cn);
+    setEditStudioDescription(item.description_cn ?? "");
+    setEditStudioTeaser(item.teaser_cn ?? "");
+    setEditStudioUnlockedNote(item.unlocked_note_cn ?? "");
+    setEditStudioCategory(item.category);
+    setEditStudioUnlockMode(item.unlock_mode);
+    setEditStudioRequiredPuzzleId(item.required_puzzle_id ?? "");
+    setEditStudioSortOrder(String(item.sort_order ?? 0));
+    setEditStudioStatus(item.status);
+    setStudioManageStatus("");
+  }
+
+  function cancelEditStudioItem() {
+    setEditingStudioItemId(null);
+    setStudioManageStatus("");
+  }
+
+  async function handleUpdateStudioItem() {
+    if (!editingStudioItemId) return;
+
+    const title = editStudioTitle.trim();
+    const parsedSortOrder = Number(editStudioSortOrder);
+
+    if (!title) {
+        setStudioManageStatus("请填写暗房内容标题。");
+        return;
+    }
+
+    if (editStudioUnlockMode === "magic_puzzle" && !editStudioRequiredPuzzleId) {
+        setStudioManageStatus("Magic 解锁内容需要绑定一个谜题。");
+        return;
+    }
+
+    setSavingStudioItemId(editingStudioItemId);
+    setStudioManageStatus("正在保存暗房内容……");
+
+    const { error } = await supabase.rpc("update_studio_item", {
+        studio_item_id_input: editingStudioItemId,
+        title_input: title,
+        description_input: editStudioDescription.trim(),
+        teaser_input: editStudioTeaser.trim(),
+        unlocked_note_input: editStudioUnlockedNote.trim(),
+        category_input: editStudioCategory,
+        unlock_mode_input: editStudioUnlockMode,
+        required_puzzle_id_input:
+        editStudioUnlockMode === "magic_puzzle"
+            ? editStudioRequiredPuzzleId
+            : null,
+        sort_order_input: Number.isFinite(parsedSortOrder)
+        ? Math.round(parsedSortOrder)
+        : 0,
+        status_input: editStudioStatus,
+    });
+
+    if (error) {
+        setStudioManageStatus(`保存失败：${error.message}`);
+        setSavingStudioItemId(null);
+        return;
+    }
+
+    setStudioManageStatus("暗房内容已保存。");
+    setSavingStudioItemId(null);
+    setEditingStudioItemId(null);
+
+    await loadRecentStudioItems();
+  }
+
+  async function handleSetStudioItemStatus(
+    item: StudioItemRow,
+    nextStatus: StudioItemStatus,
+    ) {
+    setSavingStudioItemId(item.id);
+    setStudioManageStatus(
+        nextStatus === "hidden" ? "正在隐藏暗房内容……" : "正在恢复暗房内容……",
+    );
+
+    const { error } = await supabase.rpc("set_studio_item_status", {
+        studio_item_id_input: item.id,
+        status_input: nextStatus,
+    });
+
+    if (error) {
+        setStudioManageStatus(`状态更新失败：${error.message}`);
+        setSavingStudioItemId(null);
+        return;
+    }
+
+    setStudioManageStatus(nextStatus === "hidden" ? "已隐藏。" : "已恢复开放。");
+    setSavingStudioItemId(null);
+
+    await loadRecentStudioItems();
+  }
+
+  async function handleDeleteStudioItem(item: StudioItemRow) {
+    const confirmed = window.confirm(
+        `确认永久删除「${item.title_cn}」吗？这会从暗房列表移除该内容。`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingStudioItemId(item.id);
+    setStudioManageStatus("正在删除暗房内容……");
+
+    const { data, error } = await supabase.rpc("delete_studio_item", {
+        studio_item_id_input: item.id,
+    });
+
+    if (error) {
+        setStudioManageStatus(`删除失败：${error.message}`);
+        setDeletingStudioItemId(null);
+        return;
+    }
+
+    const deletedRow = Array.isArray(data) ? data[0] : null;
+    const pathsToRemove = [
+        deletedRow?.deleted_storage_path,
+        deletedRow?.deleted_thumbnail_path,
+    ].filter(Boolean) as string[];
+
+    if (pathsToRemove.length > 0) {
+        const { error: removeError } = await supabase.storage
+        .from("studio-media")
+        .remove(pathsToRemove);
+
+        if (removeError) {
+          setStudioManageStatus(
+             `内容记录已删除，但素材文件删除失败：${removeError.message}`,
+          );
+          setDeletingStudioItemId(null);
+          await loadRecentStudioItems();
+          return;
+        }
+    }
+
+    setStudioManageStatus("暗房内容已删除。");
+    setDeletingStudioItemId(null);
+
+    await loadRecentStudioItems();
+  }
+
   async function loadRecentRedemptions() {
     const { data: redemptionRows, error } = await supabase
       .from("redemptions")
@@ -573,7 +894,7 @@ export default function AdminPage() {
         .from("magic_puzzles")
         .select("id, slug, title_cn, status, publish_at, reward_energy, created_at")
         .order("publish_at", { ascending: false })
-        .limit(6);
+        .limit(30);
 
     if (error) {
         setErrorMessage(error.message);
@@ -581,6 +902,17 @@ export default function AdminPage() {
     }
 
     setRecentMagicPuzzles((data ?? []) as MagicPuzzleRow[]);
+  }
+
+  async function loadRecentStudioItems() {
+    const { data, error } = await supabase.rpc("get_studio_items");
+
+    if (error) {
+        setErrorMessage(error.message);
+        return;
+    }
+
+    setRecentStudioItems(((data ?? []) as StudioItemRow[]).slice(0, 8));
   }
 
   useEffect(() => {
@@ -753,7 +1085,7 @@ export default function AdminPage() {
                 <span className="text-sm text-stone-300">礼物图片</span>
                 <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
                     onChange={(event) =>
                     setNewGiftImageFile(event.target.files?.[0] ?? null)
                     }
@@ -976,6 +1308,389 @@ export default function AdminPage() {
                         </div>
                     </div>
                     ))}
+                </div>
+                )}
+            </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+            <div className="flex flex-col gap-2">
+                <p className="text-sm uppercase tracking-[0.3em] text-amber-200/80">
+                Studio Item
+                </p>
+                <h2 className="text-xl font-semibold">创建记忆暗房内容</h2>
+                <p className="text-sm text-stone-400">
+                上传图片，并设置它是默认开放，还是由某个 Magic 谜题解锁。
+                </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">标题</span>
+                <input
+                    value={studioTitle}
+                    onChange={(event) => setStudioTitle(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="例如：第一张日光底片"
+                />
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">分类</span>
+                <select
+                    value={studioCategory}
+                    onChange={(event) =>
+                    setStudioCategory(event.target.value as StudioCategory)
+                    }
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                >
+                    <option value="sunlight">日光底片</option>
+                    <option value="heartbeat">心跳短片</option>
+                    <option value="rose">玫瑰暗格</option>
+                    <option value="bloopers">笨蛋花絮</option>
+                </select>
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">解锁方式</span>
+                <select
+                    value={studioUnlockMode}
+                    onChange={(event) => {
+                    const nextMode = event.target.value as StudioUnlockMode;
+                    setStudioUnlockMode(nextMode);
+
+                    if (nextMode !== "magic_puzzle") {
+                        setStudioRequiredPuzzleId("");
+                    }
+                    }}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                >
+                    <option value="always">默认开放</option>
+                    <option value="magic_puzzle">Magic 谜题解锁</option>
+                    <option value="manual">手动解锁，后续扩展</option>
+                    <option value="password">密码解锁，后续扩展</option>
+                </select>
+                </label>
+
+                <label className="grid gap-2">
+                <span className="text-sm text-stone-300">排序值</span>
+                <input
+                    type="number"
+                    value={studioSortOrder}
+                    onChange={(event) => setStudioSortOrder(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                />
+                </label>
+
+                {studioUnlockMode === "magic_puzzle" ? (
+                <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm text-stone-300">绑定 Magic 谜题</span>
+                    <select
+                    value={studioRequiredPuzzleId}
+                    onChange={(event) => setStudioRequiredPuzzleId(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    >
+                    <option value="">选择一个谜题</option>
+                    {recentMagicPuzzles.map((puzzle) => (
+                        <option key={puzzle.id} value={puzzle.id}>
+                        {puzzle.title_cn} · {puzzle.slug}
+                        </option>
+                    ))}
+                    </select>
+                </label>
+                ) : null}
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">图片文件</span>
+                <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(event) =>
+                    setStudioImageFile(event.target.files?.[0] ?? null)
+                    }
+                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
+                />
+                <span className="text-xs text-stone-500">
+                    {studioImageFile
+                    ? studioImageFile.name
+                    : "支持图片和短视频。建议视频先控制在较小体积。"}
+                </span>
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">外层预告</span>
+                <textarea
+                    value={studioTeaser}
+                    onChange={(event) => setStudioTeaser(event.target.value)}
+                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="例如：这枚底片还没有完全显影。"
+                />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">内容描述</span>
+                <textarea
+                    value={studioDescription}
+                    onChange={(event) => setStudioDescription(event.target.value)}
+                    className="min-h-24 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="图片打开后显示的描述。"
+                />
+                </label>
+
+                <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-stone-300">解锁后说明</span>
+                <textarea
+                    value={studioUnlockedNote}
+                    onChange={(event) => setStudioUnlockedNote(event.target.value)}
+                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                    placeholder="例如：这张底片是在某个谜题被点亮后显影的。"
+                />
+                </label>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                type="button"
+                onClick={() => void handleCreateStudioItem()}
+                disabled={isCreatingStudioItem}
+                className="rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                {isCreatingStudioItem ? "正在创建……" : "创建暗房内容"}
+                </button>
+
+                {studioItemStatus ? (
+                <p className="text-sm text-amber-100">{studioItemStatus}</p>
+                ) : null}
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h3 className="text-sm font-semibold text-stone-200">最近暗房内容</h3>
+                {studioManageStatus ? (
+                    <p className="mt-3 text-sm text-amber-100">{studioManageStatus}</p>
+                ) : null}
+                {recentStudioItems.length === 0 ? (
+                <p className="mt-3 text-sm text-stone-500">暂无暗房内容。</p>
+                ) : (
+                <div className="mt-3 grid gap-3">
+                    {recentStudioItems.map((item) => {
+                        const isEditing = editingStudioItemId === item.id;
+                        const isSaving = savingStudioItemId === item.id;
+                        const isDeleting = deletingStudioItemId === item.id;
+
+                        return (
+                            <div
+                            key={item.id}
+                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                            >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                <p className="text-sm font-semibold text-stone-100">
+                                    {item.title_cn}
+                                </p>
+                                <p className="mt-1 text-xs text-stone-500">
+                                    {item.category} · {item.media_type} · {item.unlock_mode}
+                                    {item.required_puzzle_title_cn
+                                    ? ` · ${item.required_puzzle_title_cn}`
+                                    : ""}{" "}
+                                    · 排序 {item.sort_order} · {formatDateTime(item.created_at)}
+                                </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                    className={[
+                                    "rounded-full border px-3 py-1 text-xs",
+                                    item.status === "active"
+                                        ? "border-emerald-200/20 text-emerald-100"
+                                        : "border-stone-400/20 text-stone-400",
+                                    ].join(" ")}
+                                >
+                                    {item.status === "active" ? "开放中" : "已隐藏"}
+                                </span>
+
+                                <span className="rounded-full border border-amber-200/20 px-3 py-1 text-xs text-amber-100">
+                                    {item.is_unlocked ? "已解锁" : "未解锁"}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={() => startEditStudioItem(item)}
+                                    className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-stone-100 transition hover:bg-white/15"
+                                >
+                                    编辑
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                    void handleSetStudioItemStatus(
+                                        item,
+                                        item.status === "active" ? "hidden" : "active",
+                                    )
+                                    }
+                                    disabled={isSaving}
+                                    className="rounded-full border border-violet-200/20 bg-violet-100/10 px-3 py-1 text-xs text-violet-100 transition hover:bg-violet-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {item.status === "active" ? "隐藏" : "恢复"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => void handleDeleteStudioItem(item)}
+                                    disabled={isDeleting}
+                                    className="rounded-full border border-red-200/20 bg-red-100/10 px-3 py-1 text-xs text-red-100 transition hover:bg-red-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isDeleting ? "删除中……" : "删除"}
+                                </button>
+                                </div>
+                            </div>
+
+                            {isEditing ? (
+                                <div className="mt-4 grid gap-4 rounded-2xl border border-white/10 bg-black/25 p-4 md:grid-cols-2">
+                                <label className="grid gap-2">
+                                    <span className="text-sm text-stone-300">标题</span>
+                                    <input
+                                    value={editStudioTitle}
+                                    onChange={(event) => setEditStudioTitle(event.target.value)}
+                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    />
+                                </label>
+
+                                <label className="grid gap-2">
+                                    <span className="text-sm text-stone-300">分类</span>
+                                    <select
+                                    value={editStudioCategory}
+                                    onChange={(event) =>
+                                        setEditStudioCategory(event.target.value as StudioCategory)
+                                    }
+                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    >
+                                    <option value="sunlight">日光底片</option>
+                                    <option value="heartbeat">心跳短片</option>
+                                    <option value="rose">玫瑰暗格</option>
+                                    <option value="bloopers">笨蛋花絮</option>
+                                    </select>
+                                </label>
+
+                                <label className="grid gap-2">
+                                    <span className="text-sm text-stone-300">解锁方式</span>
+                                    <select
+                                    value={editStudioUnlockMode}
+                                    onChange={(event) => {
+                                        const nextMode = event.target.value as StudioUnlockMode;
+                                        setEditStudioUnlockMode(nextMode);
+
+                                        if (nextMode !== "magic_puzzle") {
+                                        setEditStudioRequiredPuzzleId("");
+                                        }
+                                    }}
+                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    >
+                                    <option value="always">默认开放</option>
+                                    <option value="magic_puzzle">Magic 谜题解锁</option>
+                                    <option value="manual">手动解锁，后续扩展</option>
+                                    <option value="password">密码解锁，后续扩展</option>
+                                    </select>
+                                </label>
+
+                                <label className="grid gap-2">
+                                    <span className="text-sm text-stone-300">状态</span>
+                                    <select
+                                    value={editStudioStatus}
+                                    onChange={(event) =>
+                                        setEditStudioStatus(event.target.value as StudioItemStatus)
+                                    }
+                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    >
+                                    <option value="active">开放</option>
+                                    <option value="hidden">隐藏</option>
+                                    </select>
+                                </label>
+
+                                {editStudioUnlockMode === "magic_puzzle" ? (
+                                    <label className="grid gap-2 md:col-span-2">
+                                    <span className="text-sm text-stone-300">绑定 Magic 谜题</span>
+                                    <select
+                                        value={editStudioRequiredPuzzleId}
+                                        onChange={(event) =>
+                                        setEditStudioRequiredPuzzleId(event.target.value)
+                                        }
+                                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    >
+                                        <option value="">选择一个谜题</option>
+                                        {recentMagicPuzzles.map((puzzle) => (
+                                        <option key={puzzle.id} value={puzzle.id}>
+                                            {puzzle.title_cn} · {puzzle.slug}
+                                        </option>
+                                        ))}
+                                    </select>
+                                    </label>
+                                ) : null}
+
+                                <label className="grid gap-2">
+                                    <span className="text-sm text-stone-300">排序值</span>
+                                    <input
+                                    type="number"
+                                    value={editStudioSortOrder}
+                                    onChange={(event) => setEditStudioSortOrder(event.target.value)}
+                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    />
+                                </label>
+
+                                <label className="grid gap-2 md:col-span-2">
+                                    <span className="text-sm text-stone-300">外层预告</span>
+                                    <textarea
+                                    value={editStudioTeaser}
+                                    onChange={(event) => setEditStudioTeaser(event.target.value)}
+                                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    />
+                                </label>
+
+                                <label className="grid gap-2 md:col-span-2">
+                                    <span className="text-sm text-stone-300">内容描述</span>
+                                    <textarea
+                                    value={editStudioDescription}
+                                    onChange={(event) =>
+                                        setEditStudioDescription(event.target.value)
+                                    }
+                                    className="min-h-24 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    />
+                                </label>
+
+                                <label className="grid gap-2 md:col-span-2">
+                                    <span className="text-sm text-stone-300">解锁后说明</span>
+                                    <textarea
+                                    value={editStudioUnlockedNote}
+                                    onChange={(event) =>
+                                        setEditStudioUnlockedNote(event.target.value)
+                                    }
+                                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
+                                    />
+                                </label>
+
+                                <div className="flex flex-wrap gap-3 md:col-span-2">
+                                    <button
+                                    type="button"
+                                    onClick={() => void handleUpdateStudioItem()}
+                                    disabled={isSaving}
+                                    className="rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-2.5 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                    {isSaving ? "保存中……" : "保存修改"}
+                                    </button>
+
+                                    <button
+                                    type="button"
+                                    onClick={cancelEditStudioItem}
+                                    className="rounded-full border border-white/10 bg-white/10 px-5 py-2.5 text-sm text-stone-100 transition hover:bg-white/15"
+                                    >
+                                    取消
+                                    </button>
+                                </div>
+                                </div>
+                            ) : null}
+                            </div>
+                        );
+                    })}
                 </div>
                 )}
             </div>

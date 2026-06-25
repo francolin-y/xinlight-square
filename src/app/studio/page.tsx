@@ -1,14 +1,60 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { PageShell } from "@/components/PageShell";
 import { useLanguage } from "@/components/LanguageProvider";
-import {
-  ROSE_PASSWORD,
-  studioItems,
-  type StudioItem,
-  type StudioPanel,
-} from "@/data/studio";
+import { ROSE_PASSWORD, type StudioPanel } from "@/data/studio";
+import { createClient } from "@/lib/supabase/client";
+
+type LocalizedText = {
+  cn: string;
+  en: string;
+};
+
+type StudioMediaType = "image" | "video";
+type StudioCategory = "sunlight" | "heartbeat" | "rose" | "bloopers";
+type StudioUnlockMode = "always" | "magic_puzzle" | "manual" | "password";
+type StudioDisplayItemStatus = "active" | "hidden";
+type StudioLoadStatus = "loading" | "allowed" | "signedOut" | "forbidden" | "error";
+
+type StudioDisplayItemRpcRow = {
+  id: string;
+  title_cn: string;
+  title_en: string;
+  description_cn: string | null;
+  description_en: string | null;
+  teaser_cn: string;
+  teaser_en: string;
+  unlocked_note_cn: string | null;
+  unlocked_note_en: string | null;
+  media_type: StudioMediaType;
+  category: StudioCategory;
+  unlock_mode: StudioUnlockMode;
+  status: StudioDisplayItemStatus;
+  storage_path: string | null;
+  thumbnail_path: string | null;
+  required_puzzle_id: string | null;
+  required_puzzle_title_cn: string | null;
+  required_puzzle_title_en: string | null;
+  sort_order: number;
+  created_at: string;
+  is_unlocked: boolean;
+};
+
+type StudioDisplayItem = {
+  id: string;
+  category: StudioCategory;
+  type: "photo" | "video" | "voice";
+  status: "unlocked" | "locked";
+  title: LocalizedText;
+  description: LocalizedText;
+  teaser: LocalizedText;
+  unlockedNote: LocalizedText;
+  date: string;
+  imageUrl: string;
+  unlockMode: StudioUnlockMode;
+  requiredPuzzleTitle: LocalizedText;
+};
 
 const studioCopies = {
   cn: {
@@ -69,6 +115,11 @@ const studioCopies = {
         action: "展开花絮胶卷",
       },
     },
+    loadingArchive: "正在读取记忆暗房……",
+    signedOutArchive: "请先登录后进入记忆暗房。",
+    forbiddenArchive: "当前身份暂时不能进入记忆暗房。",
+    loadErrorArchive: "记忆暗房读取失败。",
+    emptyArchive: "暗房里还没有内容。",
   },
   en: {
     archiveEyebrow: "Underground Archive",
@@ -129,18 +180,71 @@ const studioCopies = {
         action: "Unroll bloopers",
       },
     },
+    loadingArchive: "Loading Memory Darkroom...",
+    signedOutArchive: "Please sign in before entering the Memory Darkroom.",
+    forbiddenArchive: "Your current role cannot enter the Memory Darkroom yet.",
+    loadErrorArchive: "Failed to load Memory Darkroom.",
+    emptyArchive: "No items in the darkroom yet.",
   },
 };
+
+function formatStudioDate(value: string) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function mapStudioDisplayItemRow(row: StudioDisplayItemRpcRow, imageUrl: string): StudioDisplayItem {
+  return {
+    id: row.id.slice(0, 8),
+    category: row.category,
+    type: row.media_type === "video" ? "video" : "photo",
+    status: row.is_unlocked ? "unlocked" : "locked",
+    title: {
+      cn: row.title_cn,
+      en: row.title_en,
+    },
+    description: {
+      cn: row.description_cn ?? row.unlocked_note_cn ?? row.title_cn,
+      en: row.description_en ?? row.unlocked_note_en ?? row.title_en,
+    },
+    teaser: {
+      cn: row.teaser_cn,
+      en: row.teaser_en,
+    },
+    unlockedNote: {
+      cn: row.unlocked_note_cn ?? "",
+      en: row.unlocked_note_en ?? "",
+    },
+    date: formatStudioDate(row.created_at),
+    imageUrl,
+    unlockMode: row.unlock_mode,
+    requiredPuzzleTitle: {
+      cn: row.required_puzzle_title_cn ?? "",
+      en: row.required_puzzle_title_en ?? "",
+    },
+  };
+}
 
 export default function StudioPage() {
   const { lang, t } = useLanguage();
   const page = studioCopies[lang];
+  const supabase = useMemo(() => createClient(), []);
 
   const [activePanel, setActivePanel] = useState<StudioPanel | null>(null);
   const [roseUnlocked, setRoseUnlocked] = useState(false);
   const [rosePassword, setRosePassword] = useState("");
   const [roseError, setRoseError] = useState("");
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [selectedItem, setSelectedItem] = useState<StudioDisplayItem | null>(null);
+
+  const [studioItems, setStudioDisplayItems] = useState<StudioDisplayItem[]>([]);
+  const [studioLoadStatus, setStudioLoadStatus] =
+    useState<StudioLoadStatus>("loading");
+  const [studioLoadMessage, setStudioLoadMessage] = useState("");
 
   const sunlightItems = studioItems.filter((item) => item.category === "sunlight");
   const heartbeatItems = studioItems.filter((item) => item.category === "heartbeat");
@@ -150,7 +254,8 @@ export default function StudioPage() {
   const totalCount = studioItems.length;
   const unlockedCount = studioItems.filter((item) => item.status === "unlocked").length;
   const lockedCount = totalCount - unlockedCount;
-  const unlockRate = Math.round((unlockedCount / totalCount) * 100);
+  const unlockRate =
+    totalCount === 0 ? 0 : Math.round((unlockedCount / totalCount) * 100);
 
   const currentVideo = heartbeatItems[currentVideoIndex] ?? heartbeatItems[0];
 
@@ -171,6 +276,15 @@ export default function StudioPage() {
     setActivePanel(null);
     setRoseError("");
     setRosePassword("");
+  }
+
+  function openStudioItem(item: StudioDisplayItem) {
+    if (item.status === "locked") return;
+    setSelectedItem(item);
+  }
+
+  function closeStudioItem() {
+    setSelectedItem(null);
   }
 
   function submitRosePassword(event: FormEvent<HTMLFormElement>) {
@@ -196,6 +310,71 @@ export default function StudioPage() {
       current === heartbeatItems.length - 1 ? 0 : current + 1,
     );
   }
+
+  async function loadStudioDisplayItems() {
+    setStudioLoadStatus("loading");
+    setStudioLoadMessage("");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      setStudioLoadStatus("error");
+      setStudioLoadMessage(userError.message);
+      setStudioDisplayItems([]);
+      return;
+    }
+
+    if (!user) {
+      setStudioLoadStatus("signedOut");
+      setStudioDisplayItems([]);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("get_studio_items");
+
+    if (error) {
+      const message = error.message;
+
+      if (message.includes("当前身份")) {
+        setStudioLoadStatus("forbidden");
+      } else {
+        setStudioLoadStatus("error");
+      }
+
+      setStudioLoadMessage(message);
+      setStudioDisplayItems([]);
+      return;
+    }
+
+    const rows = (data ?? []) as StudioDisplayItemRpcRow[];
+
+    const mappedItems = await Promise.all(
+      rows.map(async (row) => {
+        let imageUrl = "";
+
+        if (row.is_unlocked && row.storage_path) {
+          const { data: signedData } = await supabase.storage
+            .from("studio-media")
+            .createSignedUrl(row.storage_path, 60 * 60);
+
+          imageUrl = signedData?.signedUrl ?? "";
+        }
+
+        return mapStudioDisplayItemRow(row, imageUrl);
+      }),
+    );
+
+    setStudioDisplayItems(mappedItems);
+    setStudioLoadStatus("allowed");
+  }
+
+  useEffect(() => {
+    void loadStudioDisplayItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <PageShell
@@ -230,6 +409,23 @@ export default function StudioPage() {
         </div>
       </section>
 
+      {studioLoadStatus !== "allowed" ? (
+        <section className="mb-6 rounded-[2rem] border border-white/10 bg-black/35 p-5 text-sm text-stone-200 backdrop-blur-md">
+          {studioLoadStatus === "loading" ? page.loadingArchive : null}
+          {studioLoadStatus === "signedOut" ? page.signedOutArchive : null}
+          {studioLoadStatus === "forbidden" ? page.forbiddenArchive : null}
+          {studioLoadStatus === "error"
+            ? `${page.loadErrorArchive} ${studioLoadMessage}`
+            : null}
+        </section>
+      ) : null}
+
+      {studioLoadStatus === "allowed" && studioItems.length === 0 ? (
+        <section className="mb-6 rounded-[2rem] border border-white/10 bg-black/35 p-5 text-sm text-stone-200 backdrop-blur-md">
+          {page.emptyArchive}
+        </section>
+      ) : null}
+
       <section className="rounded-[2.25rem] border border-white/10 bg-black/35 p-5 shadow-2xl shadow-black/40 backdrop-blur-md ring-1 ring-white/10 md:p-6">
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -263,6 +459,7 @@ export default function StudioPage() {
             items={sunlightItems}
             lang={lang}
             onOpenAll={() => openPanel("sunlight")}
+            onOpenItem={openStudioItem}
           />
 
           <div className="grid gap-5">
@@ -342,6 +539,7 @@ export default function StudioPage() {
                   playPlaceholder={page.playPlaceholder}
                   onPrevious={goPreviousVideo}
                   onNext={goNextVideo}
+                  onOpenItem={openStudioItem}
                 />
               )}
 
@@ -365,6 +563,7 @@ export default function StudioPage() {
                   lockedHint={page.lockedHint}
                   onPasswordChange={setRosePassword}
                   onSubmit={submitRosePassword}
+                  onOpenItem={openStudioItem}
                 />
               )}
 
@@ -378,6 +577,7 @@ export default function StudioPage() {
                   lockedLabel={page.locked}
                   unlockedLabel={page.unlocked}
                   lockedHint={page.lockedHint}
+                  onOpenItem={openStudioItem}
                 />
               )}
 
@@ -398,6 +598,17 @@ export default function StudioPage() {
           </section>
         </div>
       )}
+
+      {selectedItem ? (
+        <StudioItemModal
+          item={selectedItem}
+          lang={lang}
+          closeLabel={page.close}
+          lockedLabel={page.locked}
+          unlockedLabel={page.unlocked}
+          onClose={closeStudioItem}
+        />
+      ) : null}
     </PageShell>
   );
 }
@@ -425,6 +636,7 @@ function SunlightWorkbench({
   unlockedLabel,
   items,
   lang,
+  onOpenItem,
   onOpenAll,
 }: {
   title: string;
@@ -432,8 +644,9 @@ function SunlightWorkbench({
   openAllLabel: string;
   lockedLabel: string;
   unlockedLabel: string;
-  items: StudioItem[];
+  items: StudioDisplayItem[];
   lang: "cn" | "en";
+  onOpenItem: (item: StudioDisplayItem) => void;
   onOpenAll: () => void;
 }) {
   const unlockedCount = items.filter((item) => item.status === "unlocked").length;
@@ -489,7 +702,7 @@ function SunlightWorkbench({
                 lang={lang}
                 lockedLabel={lockedLabel}
                 unlockedLabel={unlockedLabel}
-                onClick={onOpenAll}
+                onClick={() => onOpenItem(item)}
               />
             ))}
           </div>
@@ -528,7 +741,7 @@ function HangingNegativeCard({
   unlockedLabel,
   onClick,
 }: {
-  item: StudioItem;
+  item: StudioDisplayItem;
   index: number;
   lang: "cn" | "en";
   lockedLabel: string;
@@ -576,7 +789,7 @@ function HangingNegativeCard({
               : "border-stone-900/20 bg-gradient-to-br from-stone-800 via-stone-500 to-amber-100",
           ].join(" ")}
         >
-          <div className="absolute inset-y-0 left-0 w-3 bg-black/35">
+          <div className="absolute inset-y-0 left-0 z-10 w-3 bg-black/35">
             <div className="grid h-full grid-rows-6 gap-1 p-1">
               {Array.from({ length: 6 }).map((_, dotIndex) => (
                 <span key={dotIndex} className="rounded-sm bg-stone-300/35" />
@@ -584,7 +797,7 @@ function HangingNegativeCard({
             </div>
           </div>
 
-          <div className="absolute inset-y-0 right-0 w-3 bg-black/35">
+          <div className="absolute inset-y-0 right-0 z-10 w-3 bg-black/35">
             <div className="grid h-full grid-rows-6 gap-1 p-1">
               {Array.from({ length: 6 }).map((_, dotIndex) => (
                 <span key={dotIndex} className="rounded-sm bg-stone-300/35" />
@@ -592,27 +805,35 @@ function HangingNegativeCard({
             </div>
           </div>
 
-          <div className="px-5 text-center">
-            <div
-              className={[
-                "mx-auto grid h-14 w-14 place-items-center rounded-2xl border text-2xl",
-                isLocked
-                  ? "border-white/10 bg-black/35 text-stone-500"
-                  : "border-amber-100/30 bg-amber-100/20 text-amber-50",
-              ].join(" ")}
-            >
-              {isLocked ? "▣" : "◒"}
-            </div>
+          {!isLocked && item.imageUrl && item.type !== "video" ? (
+            <img
+              src={item.imageUrl}
+              alt={item.title[lang]}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="px-5 text-center">
+              <div
+                className={[
+                  "mx-auto grid h-14 w-14 place-items-center rounded-2xl border text-2xl",
+                  isLocked
+                    ? "border-white/10 bg-black/35 text-stone-500"
+                    : "border-amber-100/30 bg-amber-100/20 text-amber-50",
+                ].join(" ")}
+              >
+                {isLocked ? "▣" : "◒"}
+              </div>
 
-            <p
-              className={[
-                "mt-3 text-xs font-medium leading-5",
-                isLocked ? "text-stone-500" : "text-stone-50",
-              ].join(" ")}
-            >
-              {isLocked ? lockedLabel : item.title[lang]}
-            </p>
-          </div>
+              <p
+                className={[
+                  "mt-3 text-xs font-medium leading-5",
+                  isLocked ? "text-stone-500" : "text-stone-50",
+                ].join(" ")}
+              >
+                {isLocked ? lockedLabel : item.title[lang]}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-2 flex items-center justify-between gap-2 text-[0.68rem]">
@@ -768,7 +989,7 @@ function ArchiveEntry({
   unlockedLabel,
   lockedHint,
 }: {
-  item: StudioItem;
+  item: StudioDisplayItem;
   lang: "cn" | "en";
   typeLabel: string;
   lockedLabel: string;
@@ -815,7 +1036,7 @@ function ArchiveEntry({
         <h3 className="text-lg font-semibold text-stone-50">{item.title[lang]}</h3>
         <p className="mt-2 text-xs text-stone-500">{item.date}</p>
         <p className="mt-3 text-sm leading-6 text-stone-300">
-          {isLocked ? lockedHint : item.description[lang]}
+          {isLocked ? item.teaser[lang] : item.description[lang]}
         </p>
       </div>
     </article>
@@ -839,10 +1060,11 @@ function CameraViewer({
   playPlaceholder,
   onPrevious,
   onNext,
+  onOpenItem,
 }: {
   title: string;
   intro: string;
-  currentVideo: StudioItem;
+  currentVideo: StudioDisplayItem;
   currentIndex: number;
   total: number;
   lang: "cn" | "en";
@@ -856,6 +1078,7 @@ function CameraViewer({
   playPlaceholder: string;
   onPrevious: () => void;
   onNext: () => void;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const isLocked = currentVideo.status === "locked";
 
@@ -893,8 +1116,23 @@ function CameraViewer({
           <div className="pointer-events-none absolute bottom-5 left-5 h-10 w-10 border-b border-l border-amber-100/35" />
           <div className="pointer-events-none absolute bottom-5 right-5 h-10 w-10 border-b border-r border-amber-100/35" />
 
-          <div className="relative grid aspect-video place-items-center px-6 py-10">
-            <div className="text-center">
+          <button
+            type="button"
+            onClick={() => onOpenItem(currentVideo)}
+            disabled={isLocked}
+            className="relative grid aspect-video w-full place-items-center px-6 py-10 text-left transition disabled:cursor-not-allowed"
+          >
+            {!isLocked && currentVideo.imageUrl && currentVideo.type !== "video" ?(
+              <img
+                src={currentVideo.imageUrl}
+                alt={currentVideo.title[lang]}
+                className="absolute inset-0 h-full w-full object-cover opacity-80"
+              />
+            ) : null}
+
+            <div className="absolute inset-0 bg-black/35" />
+
+            <div className="relative text-center">
               <div
                 className={[
                   "mx-auto grid h-24 w-24 place-items-center rounded-[2rem] border text-4xl shadow-2xl",
@@ -903,22 +1141,22 @@ function CameraViewer({
                     : "border-amber-100/25 bg-amber-100/10 text-amber-100 shadow-amber-950/40",
                 ].join(" ")}
               >
-                {isLocked ? "▣" : "▶"}
+                {isLocked ? "▣" : currentVideo.type === "video" ? "▶" : "◒"}
               </div>
 
-              <p className="mt-5 text-xs uppercase tracking-[0.28em] text-stone-500">
+              <p className="mt-5 text-xs uppercase tracking-[0.28em] text-stone-300">
                 {playPlaceholder}
               </p>
 
               <h3 className="mt-3 text-2xl font-semibold text-stone-50 md:text-3xl">
-                {currentVideo.title[lang]}
+                {isLocked ? lockedLabel : currentVideo.title[lang]}
               </h3>
 
               <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-stone-300">
-                {isLocked ? lockedHint : mediaPending}
+                {isLocked ? currentVideo.teaser[lang] : mediaPending}
               </p>
             </div>
-          </div>
+          </button>
 
           <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/45 px-4 py-2 text-xs text-stone-300 backdrop-blur">
             <span>00:{String(currentIndex + 1).padStart(2, "0")}:19</span>
@@ -970,6 +1208,7 @@ function RoseCompartmentViewer({
   lockedHint,
   onPasswordChange,
   onSubmit,
+  onOpenItem,
 }: {
   title: string;
   intro: string;
@@ -981,7 +1220,7 @@ function RoseCompartmentViewer({
   password: string;
   error: string;
   isUnlocked: boolean;
-  items: StudioItem[];
+  items: StudioDisplayItem[];
   lang: "cn" | "en";
   typeLabels: Record<"photo" | "video" | "voice", string>;
   lockedLabel: string;
@@ -989,6 +1228,7 @@ function RoseCompartmentViewer({
   lockedHint: string;
   onPasswordChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const midpoint = Math.ceil(items.length / 2);
   const leftPageItems = items.slice(0, midpoint);
@@ -1089,6 +1329,7 @@ function RoseCompartmentViewer({
             lockedLabel={lockedLabel}
             unlockedLabel={unlockedLabel}
             lockedHint={lockedHint}
+            onOpenItem={onOpenItem}
           />
 
           <AlbumPage
@@ -1099,6 +1340,7 @@ function RoseCompartmentViewer({
             lockedLabel={lockedLabel}
             unlockedLabel={unlockedLabel}
             lockedHint={lockedHint}
+            onOpenItem={onOpenItem}
           />
         </div>
       </div>
@@ -1114,14 +1356,16 @@ function AlbumPage({
   lockedLabel,
   unlockedLabel,
   lockedHint,
+  onOpenItem,
 }: {
   pageLabel: string;
-  items: StudioItem[];
+  items: StudioDisplayItem[];
   lang: "cn" | "en";
   typeLabels: Record<"photo" | "video" | "voice", string>;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   return (
     <div className="relative min-h-[28rem] rounded-[1.5rem] border border-stone-900/20 bg-stone-200 p-4 text-stone-950 shadow-inner">
@@ -1150,6 +1394,7 @@ function AlbumPage({
               lockedLabel={lockedLabel}
               unlockedLabel={unlockedLabel}
               lockedHint={lockedHint}
+              onOpenItem={onOpenItem}
             />
           ))
         )}
@@ -1166,44 +1411,57 @@ function AlbumPhotoCard({
   lockedLabel,
   unlockedLabel,
   lockedHint,
+  onOpenItem,
 }: {
-  item: StudioItem;
+  item: StudioDisplayItem;
   index: number;
   lang: "cn" | "en";
   typeLabel: string;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const isLocked = item.status === "locked";
   const rotationClass = index % 2 === 0 ? "-rotate-1" : "rotate-1";
 
   return (
-    <article
+    <button
+      type="button"
+      onClick={() => onOpenItem(item)}
+      disabled={isLocked}
       className={[
-        "relative rounded-2xl bg-stone-50 p-3 shadow-xl transition duration-300 hover:rotate-0",
+        "relative rounded-2xl bg-stone-50 p-3 text-left shadow-xl transition duration-300 hover:rotate-0 disabled:cursor-not-allowed",
         rotationClass,
         isLocked ? "opacity-65" : "",
       ].join(" ")}
     >
       <div
         className={[
-          "grid aspect-[4/3] place-items-center rounded-xl border",
+          "relative grid aspect-[4/3] place-items-center overflow-hidden rounded-xl border",
           isLocked
             ? "border-stone-900/10 bg-stone-300"
             : "border-stone-900/10 bg-gradient-to-br from-stone-800 via-stone-500 to-amber-100",
         ].join(" ")}
       >
-        <div
-          className={[
-            "grid h-16 w-16 place-items-center rounded-2xl border text-2xl",
-            isLocked
-              ? "border-stone-900/10 bg-stone-900/15 text-stone-500"
-              : "border-amber-100/30 bg-amber-100/20 text-amber-50",
-          ].join(" ")}
-        >
-          {isLocked ? "▣" : "◒"}
-        </div>
+        {!isLocked && item.imageUrl && item.type !== "video" ? (
+          <img
+            src={item.imageUrl}
+            alt={item.title[lang]}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className={[
+              "grid h-16 w-16 place-items-center rounded-2xl border text-2xl",
+              isLocked
+                ? "border-stone-900/10 bg-stone-900/15 text-stone-500"
+                : "border-amber-100/30 bg-amber-100/20 text-amber-50",
+            ].join(" ")}
+          >
+            {isLocked ? "▣" : "◒"}
+          </div>
+        )}
       </div>
 
       <div className="mt-3">
@@ -1226,10 +1484,10 @@ function AlbumPhotoCard({
         <p className="mt-1 text-xs text-stone-500">{item.date}</p>
 
         <p className="mt-2 text-sm leading-6 text-stone-700">
-          {isLocked ? lockedHint : item.description[lang]}
+          {isLocked ? item.teaser[lang] : item.description[lang]}
         </p>
       </div>
-    </article>
+    </button>
   );
 }
 
@@ -1242,15 +1500,17 @@ function BlooperReelViewer({
   lockedLabel,
   unlockedLabel,
   lockedHint,
+  onOpenItem,
 }: {
   title: string;
   intro: string;
-  items: StudioItem[];
+  items: StudioDisplayItem[];
   lang: "cn" | "en";
   typeLabels: Record<"photo" | "video" | "voice", string>;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const unlockedCount = items.filter((item) => item.status === "unlocked").length;
 
@@ -1294,6 +1554,7 @@ function BlooperReelViewer({
                 lockedLabel={lockedLabel}
                 unlockedLabel={unlockedLabel}
                 lockedHint={lockedHint}
+                onOpenItem={onOpenItem}
               />
             ))}
           </div>
@@ -1311,14 +1572,16 @@ function BlooperFilmFrame({
   lockedLabel,
   unlockedLabel,
   lockedHint,
+  onOpenItem,
 }: {
-  item: StudioItem;
+  item: StudioDisplayItem;
   index: number;
   lang: "cn" | "en";
   typeLabel: string;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const isLocked = item.status === "locked";
   const isVideo = item.type === "video";
@@ -1327,9 +1590,12 @@ function BlooperFilmFrame({
   const icon = isLocked ? "▣" : isVideo ? "▶" : isVoice ? "≈" : "◒";
 
   return (
-    <article
+    <button
+      type="button"
+      onClick={() => onOpenItem(item)}
+      disabled={isLocked}
       className={[
-        "relative overflow-hidden rounded-[1.5rem] border bg-black/45 p-3 shadow-xl transition duration-300 hover:-translate-y-1 hover:bg-black/55",
+        "relative w-full overflow-hidden rounded-[1.5rem] border bg-black/45 p-3 text-left shadow-xl transition duration-300 hover:-translate-y-1 hover:bg-black/55 disabled:cursor-not-allowed",
         isLocked ? "border-white/5 opacity-65" : "border-amber-100/15",
       ].join(" ")}
     >
@@ -1361,6 +1627,14 @@ function BlooperFilmFrame({
           ].join(" ")}
         >
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_35%,rgba(0,0,0,0.24))]" />
+
+          {!isLocked && item.imageUrl && item.type !== "video" ?  (
+            <img
+              src={item.imageUrl}
+              alt={item.title[lang]}
+              className="absolute inset-0 h-full w-full object-cover opacity-85"
+            />
+          ) : null}
 
           <div
             className={[
@@ -1408,7 +1682,7 @@ function BlooperFilmFrame({
             <p className="mt-2 text-xs text-stone-500">{item.date}</p>
 
             <p className="mt-3 text-sm leading-7 text-stone-300">
-              {isLocked ? lockedHint : item.description[lang]}
+              {isLocked ? item.teaser[lang] : item.description[lang]}
             </p>
           </div>
 
@@ -1426,7 +1700,7 @@ function BlooperFilmFrame({
           </div>
         </div>
       </div>
-    </article>
+    </button>
   );
 }
 
@@ -1442,7 +1716,7 @@ function SunlightLightboxViewer({
 }: {
   title: string;
   intro: string;
-  items: StudioItem[];
+  items: StudioDisplayItem[];
   lang: "cn" | "en";
   typeLabels: Record<"photo" | "video" | "voice", string>;
   lockedLabel: string;
@@ -1531,7 +1805,7 @@ function LightTableNegative({
   unlockedLabel,
   lockedHint,
 }: {
-  item: StudioItem;
+  item: StudioDisplayItem;
   index: number;
   lang: "cn" | "en";
   typeLabel: string;
@@ -1584,16 +1858,24 @@ function LightTableNegative({
         </div>
 
         <div className="grid aspect-[4/3] place-items-center px-8 py-6">
-          <div
-            className={[
-              "grid h-20 w-20 place-items-center rounded-[1.5rem] border text-3xl shadow-2xl",
-              isLocked
-                ? "border-white/10 bg-black/35 text-stone-500"
-                : "border-amber-100/30 bg-amber-100/20 text-amber-50 shadow-amber-950/30",
-            ].join(" ")}
-          >
-            {isLocked ? "▣" : "◒"}
-          </div>
+          {!isLocked && item.imageUrl && item.type !== "video" ? (
+            <img
+              src={item.imageUrl}
+              alt={item.title[lang]}
+              className="h-full w-full rounded-xl object-cover shadow-2xl"
+            />
+          ) : (
+            <div
+              className={[
+                "grid h-20 w-20 place-items-center rounded-[1.5rem] border text-3xl shadow-2xl",
+                isLocked
+                  ? "border-white/10 bg-black/35 text-stone-500"
+                  : "border-amber-100/30 bg-amber-100/20 text-amber-50 shadow-amber-950/30",
+              ].join(" ")}
+            >
+              {isLocked ? "▣" : "◒"}
+            </div>
+          )}
         </div>
 
         <div className="absolute left-3 top-3 rounded-full border border-black/20 bg-black/35 px-2.5 py-1 text-xs text-stone-100 backdrop-blur">
@@ -1640,9 +1922,103 @@ function LightTableNegative({
             isLocked ? "text-stone-400" : "text-stone-700",
           ].join(" ")}
         >
-          {isLocked ? lockedHint : item.description[lang]}
+          {isLocked ? item.teaser[lang] : item.description[lang]}
         </p>
       </div>
     </article>
+  );
+}
+
+function StudioItemModal({
+  item,
+  lang,
+  closeLabel,
+  lockedLabel,
+  unlockedLabel,
+  onClose,
+}: {
+  item: StudioDisplayItem;
+  lang: "cn" | "en";
+  closeLabel: string;
+  lockedLabel: string;
+  unlockedLabel: string;
+  onClose: () => void;
+}) {
+  const isLocked = item.status === "locked";
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-4 py-8 backdrop-blur-md">
+      <button
+        type="button"
+        aria-label={closeLabel}
+        onClick={onClose}
+        className="absolute inset-0"
+      />
+
+      <section className="relative z-10 max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-amber-100/20 bg-stone-950/95 p-5 shadow-2xl shadow-black ring-1 ring-amber-100/10 md:p-6">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-amber-100/70">
+              Developed Negative
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-stone-50 md:text-3xl">
+              {item.title[lang]}
+            </h2>
+            <p className="mt-2 text-xs text-stone-500">
+              {item.date} · {isLocked ? lockedLabel : unlockedLabel}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-stone-100 transition hover:bg-white/15"
+          >
+            {closeLabel}
+          </button>
+        </div>
+
+        <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/45">
+          {item.imageUrl && item.type === "video" ? (
+            <video
+              src={item.imageUrl}
+              controls
+              playsInline
+              className="max-h-[62vh] w-full bg-black object-contain"
+            />
+          ) : item.imageUrl ? (
+            <img
+              src={item.imageUrl}
+              alt={item.title[lang]}
+              className="max-h-[62vh] w-full object-contain"
+            />
+          ) : (
+            <div className="grid aspect-video place-items-center text-stone-500">
+              ▣
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p className="text-sm uppercase tracking-[0.22em] text-stone-500">
+              Description
+            </p>
+            <p className="mt-3 text-sm leading-7 text-stone-200">
+              {item.description[lang]}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-amber-100/15 bg-amber-100/10 p-4">
+            <p className="text-sm uppercase tracking-[0.22em] text-amber-100/70">
+              Unlock Note
+            </p>
+            <p className="mt-3 text-sm leading-7 text-stone-200">
+              {item.unlockedNote[lang] || item.teaser[lang]}
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
