@@ -126,7 +126,7 @@ export function LoadingPortal({
               src="/backgrounds/loading/magic-circle-mobile.png"
               alt=""
               aria-hidden="true"
-              className="loading-magic-image"
+              className="h-full w-full object-cover object-center"
             />
           </picture>
 
