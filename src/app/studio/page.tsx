@@ -497,8 +497,8 @@ export default function StudioPage() {
       </section>
 
       {activePanel && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 py-8 backdrop-blur-sm">
-          <section className="relative max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-amber-100/15 bg-stone-950/95 shadow-2xl shadow-black ring-1 ring-white/10">
+      <div className="fixed inset-0 z-[90] grid items-start justify-items-center overflow-y-auto bg-black/70 px-4 pb-8 pt-48 backdrop-blur-sm md:items-start md:justify-items-center md:pb-10 md:pt-28">
+          <section className="relative max-h-[calc(100vh-14rem)] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-amber-100/15 bg-stone-950/95 shadow-2xl shadow-black ring-1 ring-white/10 md:max-h-[calc(100vh-10rem)]">
             <button
               type="button"
               onClick={closePanel}
@@ -507,7 +507,7 @@ export default function StudioPage() {
               {page.close}
             </button>
 
-            <div className="max-h-[88vh] overflow-y-auto p-5 md:p-7">
+            <div className="max-h-[calc(100vh-14rem)] overflow-y-auto p-5 md:max-h-[calc(100vh-10rem)] md:p-7">
               {activePanel === "sunlight" && (
                 <SunlightLightboxViewer
                   title={page.categories.sunlight.title}
@@ -518,6 +518,7 @@ export default function StudioPage() {
                   lockedLabel={page.locked}
                   unlockedLabel={page.unlocked}
                   lockedHint={page.lockedHint}
+                  onOpenItem={openStudioItem}
                 />
               )}
 
@@ -1713,6 +1714,7 @@ function SunlightLightboxViewer({
   lockedLabel,
   unlockedLabel,
   lockedHint,
+  onOpenItem,
 }: {
   title: string;
   intro: string;
@@ -1722,6 +1724,7 @@ function SunlightLightboxViewer({
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const unlockedCount = items.filter((item) => item.status === "unlocked").length;
 
@@ -1786,6 +1789,7 @@ function SunlightLightboxViewer({
                   lockedLabel={lockedLabel}
                   unlockedLabel={unlockedLabel}
                   lockedHint={lockedHint}
+                  onOpenItem={onOpenItem}
                 />
               ))}
             </div>
@@ -1804,6 +1808,7 @@ function LightTableNegative({
   lockedLabel,
   unlockedLabel,
   lockedHint,
+  onOpenItem,
 }: {
   item: StudioDisplayItem;
   index: number;
@@ -1812,6 +1817,7 @@ function LightTableNegative({
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
 }) {
   const isLocked = item.status === "locked";
   const rotationClass =
@@ -1824,7 +1830,10 @@ function LightTableNegative({
           : "-rotate-[0.5deg]";
 
   return (
-    <article
+    <button
+      type="button"
+      onClick={() => onOpenItem(item)}
+      disabled={isLocked}
       className={[
         "group relative overflow-hidden rounded-[1.5rem] border p-3 shadow-2xl transition duration-300 hover:-translate-y-1 hover:rotate-0",
         rotationClass,
@@ -1925,7 +1934,7 @@ function LightTableNegative({
           {isLocked ? item.teaser[lang] : item.description[lang]}
         </p>
       </div>
-    </article>
+    </button>
   );
 }
 
@@ -1947,7 +1956,7 @@ function StudioItemModal({
   const isLocked = item.status === "locked";
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-4 py-8 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] grid items-start justify-items-center overflow-y-auto bg-black/75 px-4 pb-8 pt-48 backdrop-blur-md md:items-start md:justify-items-center md:pb-10 md:pt-28">
       <button
         type="button"
         aria-label={closeLabel}
@@ -1955,7 +1964,7 @@ function StudioItemModal({
         className="absolute inset-0"
       />
 
-      <section className="relative z-10 max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-amber-100/20 bg-stone-950/95 p-5 shadow-2xl shadow-black ring-1 ring-amber-100/10 md:p-6">
+      <section className="relative z-10 max-h-[calc(100vh-14rem)] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-amber-100/20 bg-stone-950/95 p-5 shadow-2xl shadow-black ring-1 ring-amber-100/10 md:max-h-[calc(100vh-10rem)] md:p-6">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-amber-100/70">

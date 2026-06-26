@@ -712,7 +712,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
       </div>
 
       {selectedPuzzle ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-slate-950/80 px-5 py-10 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] grid items-start justify-items-center overflow-y-auto bg-slate-950/80 px-5 pb-10 pt-48 backdrop-blur-md md:items-start md:justify-items-center md:pb-10 md:pt-28">
           <button
             type="button"
             aria-label={page.close}
@@ -723,7 +723,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
           <div className="magic-overlay-orb" />
 
           <section className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-white/15 bg-slate-950/70 p-6 text-white shadow-2xl shadow-violet-950/50 backdrop-blur-xl md:p-8">
-            <div className="flex items-start justify-between gap-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm uppercase tracking-[0.3em] text-violet-200/80">
                   {formatDate(selectedPuzzle.publishedAt, lang)}
@@ -733,7 +733,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
                 </h2>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 text-sm">
+              <div className="flex flex-wrap gap-2 text-sm sm:mt-4">
                 <span className="rounded-full border border-amber-200/20 bg-amber-100/10 px-3 py-1 text-amber-100">
                   {page.answerReward} {getText(selectedPuzzle.reward, lang)}
                 </span>
@@ -746,7 +746,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
               <button
                 type="button"
                 onClick={closePuzzle}
-                className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white hover:text-slate-950"
+                className="self-start rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white hover:text-slate-950 sm:self-auto"
               >
                 {page.close}
               </button>
