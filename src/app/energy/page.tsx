@@ -168,11 +168,11 @@ function mapTransactionToBill(
 }
 
 function getChargingStatus(todayGain: number): "sufficient" | "stable" | "low" {
-  if (todayGain > 50) {
+  if (todayGain > 30) {
     return "sufficient";
   }
 
-  if (todayGain > 15) {
+  if (todayGain > 10) {
     return "stable";
   }
 
