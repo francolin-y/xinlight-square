@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfileRole = "admin" | "heroine" | "fan" | "guest";
@@ -33,6 +33,11 @@ type StudioMediaType = "image" | "video";
 type StudioCategory = "sunlight" | "heartbeat" | "rose" | "bloopers";
 type StudioUnlockMode = "always" | "magic_puzzle" | "manual" | "password";
 type StudioItemStatus = "active" | "hidden";
+
+type AdminTab = "overview" | "market" | "magic" | "studio" | "activity";
+type StudioCategoryFilter = "all" | StudioCategory;
+type StudioStatusFilter = "all" | StudioItemStatus;
+type AdminTone = "amber" | "violet" | "emerald" | "red" | "stone";
 
 type StudioItemRow = {
   id: string;
@@ -145,6 +150,95 @@ function getAmountLabel(amount: number) {
   return amount > 0 ? `+${amount}` : `${amount}`;
 }
 
+const adminTabs: { id: AdminTab; label: string; description: string }[] = [
+  {
+    id: "overview",
+    label: "总览",
+    description: "查看关键状态和最近变动",
+  },
+  {
+    id: "market",
+    label: "礼物市场",
+    description: "发布礼物、审核需求、管理兑换",
+  },
+  {
+    id: "magic",
+    label: "魔法谜题",
+    description: "创建谜题和查看上线状态",
+  },
+  {
+    id: "studio",
+    label: "记忆暗房",
+    description: "上传、编辑、隐藏和删除暗房内容",
+  },
+  {
+    id: "activity",
+    label: "最近动态",
+    description: "查看留言和星光值流水",
+  },
+];
+
+function getStudioCategoryLabel(category: StudioCategory) {
+  if (category === "sunlight") return "日光底片";
+  if (category === "heartbeat") return "心跳短片";
+  if (category === "rose") return "玫瑰暗格";
+  return "笨蛋花絮";
+}
+
+function getStudioUnlockModeLabel(mode: StudioUnlockMode) {
+  if (mode === "always") return "默认开放";
+  if (mode === "magic_puzzle") return "Magic 谜题解锁";
+  if (mode === "manual") return "手动解锁";
+  return "密码解锁";
+}
+
+function getStudioStatusLabel(status: StudioItemStatus) {
+  return status === "active" ? "开放中" : "已隐藏";
+}
+
+const toneTextClasses: Record<AdminTone, string> = {
+  amber: "text-amber-100",
+  violet: "text-violet-100",
+  emerald: "text-emerald-100",
+  red: "text-red-100",
+  stone: "text-stone-100",
+};
+
+const toneEyebrowClasses: Record<AdminTone, string> = {
+  amber: "text-amber-200/80",
+  violet: "text-violet-200/80",
+  emerald: "text-emerald-200/80",
+  red: "text-red-200/80",
+  stone: "text-stone-300",
+};
+
+const toneBorderClasses: Record<AdminTone, string> = {
+  amber: "border-amber-200/40",
+  violet: "border-violet-200/40",
+  emerald: "border-emerald-200/40",
+  red: "border-red-200/40",
+  stone: "border-white/10",
+};
+
+const toneButtonClasses: Record<AdminTone, string> = {
+  amber:
+    "border-amber-200/40 bg-amber-100/10 text-amber-100 hover:bg-amber-100/20",
+  violet:
+    "border-violet-200/40 bg-violet-100/10 text-violet-100 hover:bg-violet-100/20",
+  emerald:
+    "border-emerald-200/40 bg-emerald-100/10 text-emerald-100 hover:bg-emerald-100/20",
+  red: "border-red-200/40 bg-red-100/10 text-red-100 hover:bg-red-100/20",
+  stone: "border-white/10 bg-white/10 text-stone-100 hover:bg-white/15",
+};
+
+const toneFocusClasses: Record<AdminTone, string> = {
+  amber: "focus:border-amber-200/50",
+  violet: "focus:border-violet-200/50",
+  emerald: "focus:border-emerald-200/50",
+  red: "focus:border-red-200/50",
+  stone: "focus:border-white/30",
+};
+
 export default function AdminPage() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -152,6 +246,13 @@ export default function AdminPage() {
   const [displayName, setDisplayName] = useState("站长");
   const [role, setRole] = useState<ProfileRole | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [activeAdminTab, setActiveAdminTab] =
+    useState<AdminTab>("overview");
+  const [studioCategoryFilter, setStudioCategoryFilter] =
+    useState<StudioCategoryFilter>("all");
+  const [studioStatusFilter, setStudioStatusFilter] =
+    useState<StudioStatusFilter>("all");
 
   const [pendingGifts, setPendingGifts] = useState<PendingGift[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionRow[]>([]);
@@ -912,12 +1013,41 @@ export default function AdminPage() {
         return;
     }
 
-    setRecentStudioItems(((data ?? []) as StudioItemRow[]).slice(0, 8));
+    setRecentStudioItems((data ?? []) as StudioItemRow[]);
   }
 
   useEffect(() => {
     void loadAdminDashboard();
   }, []);
+
+  const activeStudioCount = recentStudioItems.filter(
+  (item) => item.status === "active",
+).length;
+const hiddenStudioCount = recentStudioItems.filter(
+  (item) => item.status === "hidden",
+).length;
+const activeMagicCount = recentMagicPuzzles.filter(
+  (puzzle) => puzzle.status === "active",
+).length;
+const hiddenMagicCount = recentMagicPuzzles.filter(
+  (puzzle) => puzzle.status === "hidden",
+).length;
+const pendingReceiptCount = redemptions.filter(
+  (redemption) => redemption.status === "pending_receipt",
+).length;
+const recentEnergyNetAmount = energyTransactions.reduce(
+  (total, transaction) => total + transaction.amount,
+  0,
+);
+
+const filteredStudioItems = recentStudioItems.filter((item) => {
+  const categoryMatched =
+    studioCategoryFilter === "all" || item.category === studioCategoryFilter;
+  const statusMatched =
+    studioStatusFilter === "all" || item.status === studioStatusFilter;
+
+  return categoryMatched && statusMatched;
+});
 
   if (accessStatus === "loading") {
     return (
@@ -992,902 +1122,1805 @@ export default function AdminPage() {
               {errorMessage}
             </p>
           ) : null}
-        </section>
+          <nav className="mt-6 flex flex-wrap gap-2">
+            {adminTabs.map((tab) => {
+                const active = activeAdminTab === tab.id;
 
-        <section className="grid gap-4 md:grid-cols-4">
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
-            <p className="text-sm text-stone-400">待审核礼物</p>
-            <p className="mt-2 text-3xl font-semibold">{pendingGifts.length}</p>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
-            <p className="text-sm text-stone-400">近期兑换</p>
-            <p className="mt-2 text-3xl font-semibold">{redemptions.length}</p>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
-            <p className="text-sm text-stone-400">最近留言</p>
-            <p className="mt-2 text-3xl font-semibold">{messages.length}</p>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
-            <p className="text-sm text-stone-400">最近流水</p>
-            <p className="mt-2 text-3xl font-semibold">
-              {energyTransactions.length}
+                return (
+                <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveAdminTab(tab.id)}
+                    className={[
+                    "rounded-full border px-4 py-2 text-sm transition",
+                    active
+                        ? "border-amber-200/50 bg-amber-100/15 text-amber-100"
+                        : "border-white/10 bg-black/20 text-stone-300 hover:bg-white/10",
+                    ].join(" ")}
+                >
+                    {tab.label}
+                </button>
+                );
+            })}
+          </nav>
+
+            <p className="mt-3 text-sm text-stone-500">
+            {adminTabs.find((tab) => tab.id === activeAdminTab)?.description}
             </p>
-          </div>
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <div className="flex flex-col gap-2">
-                <p className="text-sm uppercase tracking-[0.3em] text-amber-200/80">
-                Publish Gift
-                </p>
-                <h2 className="text-xl font-semibold">直接发布礼物</h2>
-                <p className="text-sm text-stone-400">
-                这里由站长直接创建 active 礼物，发布后会进入 Market 货架。
-                </p>
-            </div>
+        {activeAdminTab === "overview" ? (
+            <OverviewDashboard
+                pendingGiftsCount={pendingGifts.length}
+                pendingReceiptCount={pendingReceiptCount}
+                activeMagicCount={activeMagicCount}
+                hiddenMagicCount={hiddenMagicCount}
+                totalStudioCount={recentStudioItems.length}
+                activeStudioCount={activeStudioCount}
+                hiddenStudioCount={hiddenStudioCount}
+                messages={messages}
+                recentEnergyNetAmount={recentEnergyNetAmount}
+                energyTransactionCount={energyTransactions.length}
+                onSelectTab={setActiveAdminTab}
+            />
+        ) : null}
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">礼物标题</span>
-                <input
-                    value={newGiftTitle}
-                    onChange={(event) => setNewGiftTitle(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="例如：一杯热奶茶"
+        {activeAdminTab === "market" ? (
+            <AdminSection
+                eyebrow="Market"
+                title="礼物市场管理"
+                intro="发布礼物、审核礼物需求，并设置兑换记录的预计到货时间。"
+                tone="amber"
+            >
+                <MarketPublishForm
+                    title={newGiftTitle}
+                    description={newGiftDescription}
+                    price={newGiftPrice}
+                    icon={newGiftIcon}
+                    giftType={newGiftType}
+                    imageFile={newGiftImageFile}
+                    isPublishing={isPublishingGift}
+                    statusMessage={publishGiftStatus}
+                    onTitleChange={setNewGiftTitle}
+                    onDescriptionChange={setNewGiftDescription}
+                    onPriceChange={setNewGiftPrice}
+                    onIconChange={setNewGiftIcon}
+                    onGiftTypeChange={setNewGiftType}
+                    onImageFileChange={setNewGiftImageFile}
+                    onPublish={() => void handlePublishGift()}
                 />
-                </label>
 
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">星光值价格</span>
-                <input
-                    type="number"
-                    min="1"
-                    value={newGiftPrice}
-                    onChange={(event) => setNewGiftPrice(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                />
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">礼物图标</span>
-                <input
-                    value={newGiftIcon}
-                    onChange={(event) => setNewGiftIcon(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="◆"
-                />
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">礼物类型</span>
-                <select
-                    value={newGiftType}
-                    onChange={(event) => setNewGiftType(event.target.value as GiftType)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                >
-                    <option value="virtual">虚拟礼物</option>
-                    <option value="physical">实体礼物</option>
-                    <option value="date_plan">约会计划</option>
-                </select>
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">礼物描述</span>
-                <textarea
-                    value={newGiftDescription}
-                    onChange={(event) => setNewGiftDescription(event.target.value)}
-                    className="min-h-28 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="写下这个礼物的说明。"
-                />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">礼物图片</span>
-                <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
-                    onChange={(event) =>
-                    setNewGiftImageFile(event.target.files?.[0] ?? null)
+                <MarketManagePanel
+                    pendingGifts={pendingGifts}
+                    redemptions={redemptions}
+                    reviewStatus={reviewStatus}
+                    arrivalStatus={arrivalStatus}
+                    reviewImageFiles={reviewImageFiles}
+                    reviewingGiftId={reviewingGiftId}
+                    savingArrivalId={savingArrivalId}
+                    arrivalInputs={arrivalInputs}
+                    onReviewImageChange={(giftId, file) =>
+                        setReviewImageFiles((current) => ({
+                            ...current,
+                            [giftId]: file,
+                        }))
                     }
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
-                />
-                <span className="text-xs text-stone-500">
-                    {newGiftImageFile ? newGiftImageFile.name : "可选。上传后会显示在礼物卡片中。"}
-                </span>
-                </label>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                type="button"
-                onClick={() => void handlePublishGift()}
-                disabled={isPublishingGift}
-                className="rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                {isPublishingGift ? "正在发布……" : "直接发布礼物"}
-                </button>
-
-                {publishGiftStatus ? (
-                <p className="text-sm text-amber-100">{publishGiftStatus}</p>
-                ) : null}
-            </div>
-        </section>
-
-        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <div className="flex flex-col gap-2">
-                <p className="text-sm uppercase tracking-[0.3em] text-violet-200/80">
-                Magic Puzzle
-                </p>
-                <h2 className="text-xl font-semibold">创建魔法谜题</h2>
-                <p className="text-sm text-stone-400">
-                谜题会按上线时间出现在魔法空间。未到时间时，水晶球会保持沉睡。
-                </p>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">谜题标题</span>
-                <input
-                    value={magicTitle}
-                    onChange={(event) => setMagicTitle(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    placeholder="例如：月亮写下的线索"
-                />
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">Slug，可选</span>
-                <input
-                    value={magicSlug}
-                    onChange={(event) => setMagicSlug(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    placeholder="例如：moon-clue-001"
-                />
-                </label>
-
-                <label className="grid gap-2">
-                    <span className="text-sm text-stone-300">上线时间</span>
-                    <input
-                        type="datetime-local"
-                        value={magicPublishAt}
-                        onChange={(event) => setMagicPublishAt(event.target.value)}
-                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    />
-                    <span className="text-xs text-stone-500">
-                        这里按你当前设备时区填写；保存后会转换成绝对时间。后台会同时显示多伦多时间和北京时间。
-                    </span>
-                </label>
-
-                <label className="grid gap-2">
-                    <span className="text-sm text-stone-300">答对奖励星光值</span>
-                    <input
-                        type="number"
-                        min="0"
-                        value={magicRewardEnergy}
-                        onChange={(event) => setMagicRewardEnergy(event.target.value)}
-                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    />
-                    <span className="text-xs text-stone-500">
-                        默认 3。答对后只奖励第一次。
-                    </span>
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">状态</span>
-                <select
-                    value={magicStatus}
-                    onChange={(event) =>
-                    setMagicStatus(event.target.value as MagicPuzzleStatus)
+                    onActivateGift={(giftId) => void handleActivateGift(giftId)}
+                    onArrivalChange={(redemptionId, value) =>
+                        setArrivalInputs((current) => ({
+                            ...current,
+                            [redemptionId]: value,
+                        }))
                     }
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                >
-                    <option value="active">开放</option>
-                    <option value="hidden">隐藏</option>
-                </select>
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                    <span className="text-sm text-stone-300">水晶球外层预告</span>
-                    <textarea
-                        value={magicTeaser}
-                        onChange={(event) => setMagicTeaser(event.target.value)}
-                        className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                        placeholder="例如：这颗水晶球里藏着一段和晚安有关的秘密。"
-                    />
-                    <span className="text-xs text-stone-500">
-                        这段会显示在水晶球外层，不是谜题正文，也不是付费线索。
-                    </span>
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">谜题正文</span>
-                <textarea
-                    value={magicRiddle}
-                    onChange={(event) => setMagicRiddle(event.target.value)}
-                    className="min-h-28 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    placeholder="写下线索、问题或谜面。"
+                    onSaveArrival={(redemptionId) => void handleSaveArrival(redemptionId)}
                 />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">提示，可选</span>
-                <textarea
-                    value={magicHint}
-                    onChange={(event) => setMagicHint(event.target.value)}
-                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    placeholder="答错时可以展示的提示。"
-                />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                    <span className="text-sm text-stone-300">解锁后文案，可选</span>
-                    <textarea
-                        value={magicUnlockNote}
-                        onChange={(event) => setMagicUnlockNote(event.target.value)}
-                        className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                        placeholder="答对后显示的话。"
-                    />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                    <span className="text-sm text-stone-300">暗房惊喜标题，可选</span>
-                    <input
-                        value={magicSurpriseTitle}
-                        onChange={(event) => setMagicSurpriseTitle(event.target.value)}
-                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                        placeholder="例如：记忆暗房已解锁"
-                    />
-                    </label>
-
-                    <label className="grid gap-2 md:col-span-2">
-                    <span className="text-sm text-stone-300">暗房惊喜提醒，可选</span>
-                    <textarea
-                        value={magicSurpriseNote}
-                        onChange={(event) => setMagicSurpriseNote(event.target.value)}
-                        className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                        placeholder="例如：日光底片里有一张新的照片醒来了，去记忆暗房看看。"
-                    />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">正确答案</span>
-                <input
-                    value={magicAnswer}
-                    onChange={(event) => setMagicAnswer(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-violet-200/50"
-                    placeholder="例如：520"
-                />
-                <span className="text-xs text-stone-500">
-                    答案会进入 magic_puzzle_answers，不会展示给女主人公。
-                </span>
-                </label>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                type="button"
-                onClick={() => void handleCreateMagicPuzzle()}
-                disabled={isCreatingMagicPuzzle}
-                className="rounded-full border border-violet-200/40 bg-violet-100/10 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                {isCreatingMagicPuzzle ? "正在创建……" : "创建魔法谜题"}
-                </button>
-
-                {magicPuzzleStatus ? (
-                <p className="text-sm text-violet-100">{magicPuzzleStatus}</p>
-                ) : null}
-            </div>
-
-            <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
-                <h3 className="text-sm font-semibold text-stone-200">最近谜题</h3>
-
-                {recentMagicPuzzles.length === 0 ? (
-                <p className="mt-3 text-sm text-stone-500">暂无魔法谜题。</p>
-                ) : (
-                <div className="mt-3 grid gap-3">
-                    {recentMagicPuzzles.map((puzzle) => (
-                    <div
-                        key={puzzle.id}
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-                    >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p className="text-sm font-semibold text-stone-100">
-                            {puzzle.title_cn}
-                            </p>
-                            <p className="mt-1 text-xs text-stone-500">
-                                {puzzle.slug} · 奖励 +{puzzle.reward_energy} · 多伦多{" "}
-                                {formatTorontoTime(puzzle.publish_at)} · 北京{" "}
-                                {formatBeijingTime(puzzle.publish_at)}
-                            </p>
-                        </div>
-
-                        <span className="rounded-full border border-violet-200/20 px-3 py-1 text-xs text-violet-100">
-                            {puzzle.status === "active" ? "开放" : "隐藏"}
-                        </span>
-                        </div>
-                    </div>
-                    ))}
-                </div>
-                )}
-            </div>
-        </section>
-
-        <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <div className="flex flex-col gap-2">
-                <p className="text-sm uppercase tracking-[0.3em] text-amber-200/80">
-                Studio Item
-                </p>
-                <h2 className="text-xl font-semibold">创建记忆暗房内容</h2>
-                <p className="text-sm text-stone-400">
-                上传图片，并设置它是默认开放，还是由某个 Magic 谜题解锁。
-                </p>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">标题</span>
-                <input
-                    value={studioTitle}
-                    onChange={(event) => setStudioTitle(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="例如：第一张日光底片"
-                />
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">分类</span>
-                <select
-                    value={studioCategory}
-                    onChange={(event) =>
-                    setStudioCategory(event.target.value as StudioCategory)
-                    }
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                >
-                    <option value="sunlight">日光底片</option>
-                    <option value="heartbeat">心跳短片</option>
-                    <option value="rose">玫瑰暗格</option>
-                    <option value="bloopers">笨蛋花絮</option>
-                </select>
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">解锁方式</span>
-                <select
-                    value={studioUnlockMode}
-                    onChange={(event) => {
-                    const nextMode = event.target.value as StudioUnlockMode;
-                    setStudioUnlockMode(nextMode);
-
-                    if (nextMode !== "magic_puzzle") {
-                        setStudioRequiredPuzzleId("");
-                    }
-                    }}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                >
-                    <option value="always">默认开放</option>
-                    <option value="magic_puzzle">Magic 谜题解锁</option>
-                    <option value="manual">手动解锁，后续扩展</option>
-                    <option value="password">密码解锁，后续扩展</option>
-                </select>
-                </label>
-
-                <label className="grid gap-2">
-                <span className="text-sm text-stone-300">排序值</span>
-                <input
-                    type="number"
-                    value={studioSortOrder}
-                    onChange={(event) => setStudioSortOrder(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                />
-                </label>
-
-                {studioUnlockMode === "magic_puzzle" ? (
-                <label className="grid gap-2 md:col-span-2">
-                    <span className="text-sm text-stone-300">绑定 Magic 谜题</span>
-                    <select
-                    value={studioRequiredPuzzleId}
-                    onChange={(event) => setStudioRequiredPuzzleId(event.target.value)}
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    >
-                    <option value="">选择一个谜题</option>
-                    {recentMagicPuzzles.map((puzzle) => (
-                        <option key={puzzle.id} value={puzzle.id}>
-                        {puzzle.title_cn} · {puzzle.slug}
-                        </option>
-                    ))}
-                    </select>
-                </label>
-                ) : null}
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">图片文件</span>
-                <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={(event) =>
-                    setStudioImageFile(event.target.files?.[0] ?? null)
-                    }
-                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
-                />
-                <span className="text-xs text-stone-500">
-                    {studioImageFile
-                    ? studioImageFile.name
-                    : "支持图片和短视频。建议视频先控制在较小体积。"}
-                </span>
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">外层预告</span>
-                <textarea
-                    value={studioTeaser}
-                    onChange={(event) => setStudioTeaser(event.target.value)}
-                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="例如：这枚底片还没有完全显影。"
-                />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">内容描述</span>
-                <textarea
-                    value={studioDescription}
-                    onChange={(event) => setStudioDescription(event.target.value)}
-                    className="min-h-24 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="图片打开后显示的描述。"
-                />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm text-stone-300">解锁后说明</span>
-                <textarea
-                    value={studioUnlockedNote}
-                    onChange={(event) => setStudioUnlockedNote(event.target.value)}
-                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                    placeholder="例如：这张底片是在某个谜题被点亮后显影的。"
-                />
-                </label>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                type="button"
-                onClick={() => void handleCreateStudioItem()}
-                disabled={isCreatingStudioItem}
-                className="rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                {isCreatingStudioItem ? "正在创建……" : "创建暗房内容"}
-                </button>
-
-                {studioItemStatus ? (
-                <p className="text-sm text-amber-100">{studioItemStatus}</p>
-                ) : null}
-            </div>
-
-            <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
-                <h3 className="text-sm font-semibold text-stone-200">最近暗房内容</h3>
-                {studioManageStatus ? (
-                    <p className="mt-3 text-sm text-amber-100">{studioManageStatus}</p>
-                ) : null}
-                {recentStudioItems.length === 0 ? (
-                <p className="mt-3 text-sm text-stone-500">暂无暗房内容。</p>
-                ) : (
-                <div className="mt-3 grid gap-3">
-                    {recentStudioItems.map((item) => {
-                        const isEditing = editingStudioItemId === item.id;
-                        const isSaving = savingStudioItemId === item.id;
-                        const isDeleting = deletingStudioItemId === item.id;
-
-                        return (
-                            <div
-                            key={item.id}
-                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-                            >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                <p className="text-sm font-semibold text-stone-100">
-                                    {item.title_cn}
-                                </p>
-                                <p className="mt-1 text-xs text-stone-500">
-                                    {item.category} · {item.media_type} · {item.unlock_mode}
-                                    {item.required_puzzle_title_cn
-                                    ? ` · ${item.required_puzzle_title_cn}`
-                                    : ""}{" "}
-                                    · 排序 {item.sort_order} · {formatDateTime(item.created_at)}
-                                </p>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2">
-                                <span
-                                    className={[
-                                    "rounded-full border px-3 py-1 text-xs",
-                                    item.status === "active"
-                                        ? "border-emerald-200/20 text-emerald-100"
-                                        : "border-stone-400/20 text-stone-400",
-                                    ].join(" ")}
-                                >
-                                    {item.status === "active" ? "开放中" : "已隐藏"}
-                                </span>
-
-                                <span className="rounded-full border border-amber-200/20 px-3 py-1 text-xs text-amber-100">
-                                    {item.is_unlocked ? "已解锁" : "未解锁"}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => startEditStudioItem(item)}
-                                    className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-stone-100 transition hover:bg-white/15"
-                                >
-                                    编辑
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                    void handleSetStudioItemStatus(
-                                        item,
-                                        item.status === "active" ? "hidden" : "active",
-                                    )
-                                    }
-                                    disabled={isSaving}
-                                    className="rounded-full border border-violet-200/20 bg-violet-100/10 px-3 py-1 text-xs text-violet-100 transition hover:bg-violet-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {item.status === "active" ? "隐藏" : "恢复"}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => void handleDeleteStudioItem(item)}
-                                    disabled={isDeleting}
-                                    className="rounded-full border border-red-200/20 bg-red-100/10 px-3 py-1 text-xs text-red-100 transition hover:bg-red-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {isDeleting ? "删除中……" : "删除"}
-                                </button>
-                                </div>
-                            </div>
-
-                            {isEditing ? (
-                                <div className="mt-4 grid gap-4 rounded-2xl border border-white/10 bg-black/25 p-4 md:grid-cols-2">
-                                <label className="grid gap-2">
-                                    <span className="text-sm text-stone-300">标题</span>
-                                    <input
-                                    value={editStudioTitle}
-                                    onChange={(event) => setEditStudioTitle(event.target.value)}
-                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    />
-                                </label>
-
-                                <label className="grid gap-2">
-                                    <span className="text-sm text-stone-300">分类</span>
-                                    <select
-                                    value={editStudioCategory}
-                                    onChange={(event) =>
-                                        setEditStudioCategory(event.target.value as StudioCategory)
-                                    }
-                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    >
-                                    <option value="sunlight">日光底片</option>
-                                    <option value="heartbeat">心跳短片</option>
-                                    <option value="rose">玫瑰暗格</option>
-                                    <option value="bloopers">笨蛋花絮</option>
-                                    </select>
-                                </label>
-
-                                <label className="grid gap-2">
-                                    <span className="text-sm text-stone-300">解锁方式</span>
-                                    <select
-                                    value={editStudioUnlockMode}
-                                    onChange={(event) => {
-                                        const nextMode = event.target.value as StudioUnlockMode;
-                                        setEditStudioUnlockMode(nextMode);
-
-                                        if (nextMode !== "magic_puzzle") {
-                                        setEditStudioRequiredPuzzleId("");
-                                        }
-                                    }}
-                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    >
-                                    <option value="always">默认开放</option>
-                                    <option value="magic_puzzle">Magic 谜题解锁</option>
-                                    <option value="manual">手动解锁，后续扩展</option>
-                                    <option value="password">密码解锁，后续扩展</option>
-                                    </select>
-                                </label>
-
-                                <label className="grid gap-2">
-                                    <span className="text-sm text-stone-300">状态</span>
-                                    <select
-                                    value={editStudioStatus}
-                                    onChange={(event) =>
-                                        setEditStudioStatus(event.target.value as StudioItemStatus)
-                                    }
-                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    >
-                                    <option value="active">开放</option>
-                                    <option value="hidden">隐藏</option>
-                                    </select>
-                                </label>
-
-                                {editStudioUnlockMode === "magic_puzzle" ? (
-                                    <label className="grid gap-2 md:col-span-2">
-                                    <span className="text-sm text-stone-300">绑定 Magic 谜题</span>
-                                    <select
-                                        value={editStudioRequiredPuzzleId}
-                                        onChange={(event) =>
-                                        setEditStudioRequiredPuzzleId(event.target.value)
-                                        }
-                                        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    >
-                                        <option value="">选择一个谜题</option>
-                                        {recentMagicPuzzles.map((puzzle) => (
-                                        <option key={puzzle.id} value={puzzle.id}>
-                                            {puzzle.title_cn} · {puzzle.slug}
-                                        </option>
-                                        ))}
-                                    </select>
-                                    </label>
-                                ) : null}
-
-                                <label className="grid gap-2">
-                                    <span className="text-sm text-stone-300">排序值</span>
-                                    <input
-                                    type="number"
-                                    value={editStudioSortOrder}
-                                    onChange={(event) => setEditStudioSortOrder(event.target.value)}
-                                    className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    />
-                                </label>
-
-                                <label className="grid gap-2 md:col-span-2">
-                                    <span className="text-sm text-stone-300">外层预告</span>
-                                    <textarea
-                                    value={editStudioTeaser}
-                                    onChange={(event) => setEditStudioTeaser(event.target.value)}
-                                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    />
-                                </label>
-
-                                <label className="grid gap-2 md:col-span-2">
-                                    <span className="text-sm text-stone-300">内容描述</span>
-                                    <textarea
-                                    value={editStudioDescription}
-                                    onChange={(event) =>
-                                        setEditStudioDescription(event.target.value)
-                                    }
-                                    className="min-h-24 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    />
-                                </label>
-
-                                <label className="grid gap-2 md:col-span-2">
-                                    <span className="text-sm text-stone-300">解锁后说明</span>
-                                    <textarea
-                                    value={editStudioUnlockedNote}
-                                    onChange={(event) =>
-                                        setEditStudioUnlockedNote(event.target.value)
-                                    }
-                                    className="min-h-20 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-amber-200/50"
-                                    />
-                                </label>
-
-                                <div className="flex flex-wrap gap-3 md:col-span-2">
-                                    <button
-                                    type="button"
-                                    onClick={() => void handleUpdateStudioItem()}
-                                    disabled={isSaving}
-                                    className="rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-2.5 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                    {isSaving ? "保存中……" : "保存修改"}
-                                    </button>
-
-                                    <button
-                                    type="button"
-                                    onClick={cancelEditStudioItem}
-                                    className="rounded-full border border-white/10 bg-white/10 px-5 py-2.5 text-sm text-stone-100 transition hover:bg-white/15"
-                                    >
-                                    取消
-                                    </button>
-                                </div>
-                                </div>
-                            ) : null}
-                            </div>
-                        );
-                    })}
-                </div>
-                )}
-            </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <h2 className="text-xl font-semibold">待审核礼物需求</h2>
-            {reviewStatus ? (
-                <p className="mt-3 rounded-2xl border border-amber-200/20 bg-amber-100/10 px-4 py-3 text-sm text-amber-100">
-                    {reviewStatus}
-                </p>
-                ) : null}
-            <div className="mt-5 space-y-3">
-              {pendingGifts.length === 0 ? (
-                <p className="text-sm text-stone-400">暂无待审核礼物。</p>
-              ) : (
-                pendingGifts.map((gift) => (
-                    <div
-                        key={gift.id}
-                        className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                    >
-                        <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <p className="font-semibold">{gift.title_cn}</p>
-                            <p className="mt-1 text-sm text-stone-400">
-                            {gift.price} 星光值 · {formatDateTime(gift.created_at)}
-                            </p>
-                        </div>
-                        <span className="rounded-full border border-amber-200/30 px-3 py-1 text-xs text-amber-100">
-                            待审核
-                        </span>
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                        <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp,image/gif"
-                            onChange={(event) => {
-                            const file = event.target.files?.[0] ?? null;
-
-                            setReviewImageFiles((current) => ({
-                                ...current,
-                                [gift.id]: file,
-                            }));
-                            }}
-                            className="block w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-200 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
-                        />
-
-                        <button
-                            type="button"
-                            onClick={() => void handleActivateGift(gift.id)}
-                            disabled={reviewingGiftId === gift.id}
-                            className="w-full rounded-full border border-amber-200/40 bg-amber-100/10 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {reviewingGiftId === gift.id ? "正在上架……" : "上传图片并上架"}
-                        </button>
-                        </div>
-                    </div>
-                    ))
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <h2 className="text-xl font-semibold">近期兑换记录</h2>
-
-            {arrivalStatus ? (
-              <p className="mt-3 rounded-2xl border border-emerald-200/20 bg-emerald-100/10 px-4 py-3 text-sm text-emerald-100">
-                {arrivalStatus}
-              </p>
+            </AdminSection>
             ) : null}
 
-            <div className="mt-5 space-y-3">
-              {redemptions.length === 0 ? (
-                <p className="text-sm text-stone-400">暂无兑换记录。</p>
-              ) : (
-                redemptions.map((redemption) => (
-                  <div
-                    key={redemption.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-semibold">
-                          {redemption.giftTitle ?? "未知礼物"}
-                        </p>
-                        <p className="mt-1 text-sm text-stone-400">
-                          {redemption.price_paid} 星光值 ·{" "}
-                          {formatDateTime(redemption.created_at)}
-                        </p>
-                        <p className="mt-1 text-xs text-stone-500">
-                          到货：{formatDateTime(redemption.expected_arrival_at)}
-                        </p>
+        {activeAdminTab === "magic" ? (
+            <AdminSection
+                eyebrow="Magic Puzzle"
+                title="创建魔法谜题"
+                intro="谜题会按上线时间出现在魔法空间。未到时间时，水晶球会保持沉睡。"
+                tone="violet"
+            >
+                <MagicCreateForm
+                    slug={magicSlug}
+                    title={magicTitle}
+                    teaser={magicTeaser}
+                    riddle={magicRiddle}
+                    hint={magicHint}
+                    unlockNote={magicUnlockNote}
+                    answer={magicAnswer}
+                    status={magicStatus}
+                    publishAt={magicPublishAt}
+                    rewardEnergy={magicRewardEnergy}
+                    surpriseTitle={magicSurpriseTitle}
+                    surpriseNote={magicSurpriseNote}
+                    isCreating={isCreatingMagicPuzzle}
+                    statusMessage={magicPuzzleStatus}
+                    onSlugChange={setMagicSlug}
+                    onTitleChange={setMagicTitle}
+                    onTeaserChange={setMagicTeaser}
+                    onRiddleChange={setMagicRiddle}
+                    onHintChange={setMagicHint}
+                    onUnlockNoteChange={setMagicUnlockNote}
+                    onAnswerChange={setMagicAnswer}
+                    onStatusChange={setMagicStatus}
+                    onPublishAtChange={setMagicPublishAt}
+                    onRewardEnergyChange={setMagicRewardEnergy}
+                    onSurpriseTitleChange={setMagicSurpriseTitle}
+                    onSurpriseNoteChange={setMagicSurpriseNote}
+                    onCreate={() => void handleCreateMagicPuzzle()}
+                />
 
-                        {redemption.status === "pending_receipt" ? (
-                          <div className="mt-4 grid gap-3">
-                            <input
-                              type="datetime-local"
-                              value={arrivalInputs[redemption.id] ?? ""}
-                              onChange={(event) =>
-                                setArrivalInputs((current) => ({
-                                  ...current,
-                                  [redemption.id]: event.target.value,
-                                }))
-                              }
-                              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-emerald-200/50"
-                            />
+                <MagicPuzzleList puzzles={recentMagicPuzzles} />
+            </AdminSection>
+        ) : null}
 
-                            <button
-                              type="button"
-                              onClick={() => void handleSaveArrival(redemption.id)}
-                              disabled={savingArrivalId === redemption.id}
-                              className="rounded-full border border-emerald-200/40 bg-emerald-100/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/20 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {savingArrivalId === redemption.id
-                                ? "正在保存……"
-                                : "保存预计到货时间"}
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                      <span className="rounded-full border border-emerald-200/30 px-3 py-1 text-xs text-emerald-100">
-                        {getRedemptionStatusLabel(redemption.status)}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </section>
+        {activeAdminTab === "studio" ? (
+            <AdminSection
+                eyebrow="Studio Item"
+                title="创建记忆暗房内容"
+                intro="上传图片或短视频，并设置它是默认开放，还是由某个 Magic 谜题解锁。"
+                tone="amber"
+            >
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <h2 className="text-xl font-semibold">最近留言</h2>
-            <div className="mt-5 space-y-3">
-              {messages.length === 0 ? (
-                <p className="text-sm text-stone-400">暂无留言。</p>
-              ) : (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                  >
-                    <p className="line-clamp-3 text-sm text-stone-200">
-                      {message.content}
-                    </p>
-                    <p className="mt-3 text-xs text-stone-500">
-                      {message.author_display_name ?? "匿名"} ·{" "}
-                      {message.author_role ?? "unknown"} ·{" "}
-                      {formatDateTime(message.created_at)}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                <StudioCreateForm
+                    title={studioTitle}
+                    description={studioDescription}
+                    teaser={studioTeaser}
+                    unlockedNote={studioUnlockedNote}
+                    category={studioCategory}
+                    unlockMode={studioUnlockMode}
+                    requiredPuzzleId={studioRequiredPuzzleId}
+                    sortOrder={studioSortOrder}
+                    imageFile={studioImageFile}
+                    recentMagicPuzzles={recentMagicPuzzles}
+                    isCreating={isCreatingStudioItem}
+                    statusMessage={studioItemStatus}
+                    onTitleChange={setStudioTitle}
+                    onDescriptionChange={setStudioDescription}
+                    onTeaserChange={setStudioTeaser}
+                    onUnlockedNoteChange={setStudioUnlockedNote}
+                    onCategoryChange={setStudioCategory}
+                    onUnlockModeChange={setStudioUnlockMode}
+                    onRequiredPuzzleIdChange={setStudioRequiredPuzzleId}
+                    onSortOrderChange={setStudioSortOrder}
+                    onImageFileChange={setStudioImageFile}
+                    onCreate={() => void handleCreateStudioItem()}
+                />
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-            <h2 className="text-xl font-semibold">最近星光值流水</h2>
-            <div className="mt-5 space-y-3">
-              {energyTransactions.length === 0 ? (
-                <p className="text-sm text-stone-400">暂无星光值流水。</p>
-              ) : (
-                energyTransactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-semibold">
-                          {transaction.description ?? transaction.source}
-                        </p>
-                        <p className="mt-1 text-xs text-stone-500">
-                          {transaction.source} ·{" "}
-                          {formatDateTime(transaction.created_at)}
-                        </p>
-                      </div>
-                      <span
-                        className={
-                          transaction.amount >= 0
-                            ? "text-lg font-semibold text-emerald-200"
-                            : "text-lg font-semibold text-rose-200"
-                        }
-                      >
-                        {getAmountLabel(transaction.amount)}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </section>
+                <StudioManagePanel
+                    items={recentStudioItems}
+                    filteredItems={filteredStudioItems}
+                    categoryFilter={studioCategoryFilter}
+                    statusFilter={studioStatusFilter}
+                    manageStatus={studioManageStatus}
+                    recentMagicPuzzles={recentMagicPuzzles}
+                    editingItemId={editingStudioItemId}
+                    savingItemId={savingStudioItemId}
+                    deletingItemId={deletingStudioItemId}
+                    editState={{
+                        title: editStudioTitle,
+                        description: editStudioDescription,
+                        teaser: editStudioTeaser,
+                        unlockedNote: editStudioUnlockedNote,
+                        category: editStudioCategory,
+                        unlockMode: editStudioUnlockMode,
+                        requiredPuzzleId: editStudioRequiredPuzzleId,
+                        sortOrder: editStudioSortOrder,
+                        status: editStudioStatus,
+                        setTitle: setEditStudioTitle,
+                        setDescription: setEditStudioDescription,
+                        setTeaser: setEditStudioTeaser,
+                        setUnlockedNote: setEditStudioUnlockedNote,
+                        setCategory: setEditStudioCategory,
+                        setUnlockMode: setEditStudioUnlockMode,
+                        setRequiredPuzzleId: setEditStudioRequiredPuzzleId,
+                        setSortOrder: setEditStudioSortOrder,
+                        setStatus: setEditStudioStatus,
+                    }}
+                    onCategoryFilterChange={setStudioCategoryFilter}
+                    onStatusFilterChange={setStudioStatusFilter}
+                    onStartEdit={startEditStudioItem}
+                    onSetStatus={(item, nextStatus) =>
+                        void handleSetStudioItemStatus(item, nextStatus)
+                    }
+                    onDelete={(item) => void handleDeleteStudioItem(item)}
+                    onSaveEdit={() => void handleUpdateStudioItem()}
+                    onCancelEdit={cancelEditStudioItem}
+                />
+            </AdminSection>
+        ) : null}
+
+        {activeAdminTab === "activity" ? (
+            <ActivityPanel
+                messages={messages}
+                energyTransactions={energyTransactions}
+            />
+        ) : null}
       </div>
     </main>
+  );
+}
+
+function AdminSection({
+  eyebrow,
+  title,
+  intro,
+  tone = "amber",
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  intro?: string;
+  tone?: AdminTone;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+      <div className="flex flex-col gap-2">
+        <p
+          className={[
+            "text-sm uppercase tracking-[0.3em]",
+            toneEyebrowClasses[tone],
+          ].join(" ")}
+        >
+          {eyebrow}
+        </p>
+        <h2 className="text-xl font-semibold">{title}</h2>
+        {intro ? <p className="text-sm text-stone-400">{intro}</p> : null}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function FormInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  min,
+  help,
+  tone = "amber",
+  spanFull = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  min?: string;
+  help?: string;
+  tone?: AdminTone;
+  spanFull?: boolean;
+}) {
+  return (
+    <label className={["grid gap-2", spanFull ? "md:col-span-2" : ""].join(" ")}>
+      <span className="text-sm text-stone-300">{label}</span>
+      <input
+        type={type}
+        min={min}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={[
+          "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none",
+          toneFocusClasses[tone],
+        ].join(" ")}
+        placeholder={placeholder}
+      />
+      {help ? <span className="text-xs text-stone-500">{help}</span> : null}
+    </label>
+  );
+}
+
+function FormTextarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+  help,
+  tone = "amber",
+  spanFull = true,
+  minHeightClass = "min-h-20",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  help?: string;
+  tone?: AdminTone;
+  spanFull?: boolean;
+  minHeightClass?: string;
+}) {
+  return (
+    <label className={["grid gap-2", spanFull ? "md:col-span-2" : ""].join(" ")}>
+      <span className="text-sm text-stone-300">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={[
+          minHeightClass,
+          "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none",
+          toneFocusClasses[tone],
+        ].join(" ")}
+        placeholder={placeholder}
+      />
+      {help ? <span className="text-xs text-stone-500">{help}</span> : null}
+    </label>
+  );
+}
+
+function FormSelect<T extends string>({
+  label,
+  value,
+  onChange,
+  children,
+  help,
+  tone = "amber",
+  spanFull = false,
+}: {
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  children: ReactNode;
+  help?: string;
+  tone?: AdminTone;
+  spanFull?: boolean;
+}) {
+  return (
+    <label className={["grid gap-2", spanFull ? "md:col-span-2" : ""].join(" ")}>
+      <span className="text-sm text-stone-300">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className={[
+          "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none",
+          toneFocusClasses[tone],
+        ].join(" ")}
+      >
+        {children}
+      </select>
+      {help ? <span className="text-xs text-stone-500">{help}</span> : null}
+    </label>
+  );
+}
+
+function ActionButton({
+  children,
+  onClick,
+  disabled = false,
+  tone = "amber",
+  compact = false,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: AdminTone;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "rounded-full border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+        compact ? "px-3 py-1 text-xs" : "px-5 py-3",
+        toneButtonClasses[tone],
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StatusLine({
+  message,
+  tone = "amber",
+}: {
+  message: string;
+  tone?: AdminTone;
+}) {
+  if (!message) return null;
+
+  return (
+    <p className={["text-sm", toneTextClasses[tone]].join(" ")}>
+      {message}
+    </p>
+  );
+}
+
+function StatusBadge({
+  children,
+  tone = "amber",
+}: {
+  children: ReactNode;
+  tone?: AdminTone;
+}) {
+  return (
+    <span
+      className={[
+        "rounded-full border px-3 py-1 text-xs",
+        toneBorderClasses[tone],
+        toneTextClasses[tone],
+      ].join(" ")}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StudioEditForm({
+  title,
+  description,
+  teaser,
+  unlockedNote,
+  category,
+  unlockMode,
+  requiredPuzzleId,
+  sortOrder,
+  status,
+  recentMagicPuzzles,
+  isSaving,
+  onTitleChange,
+  onDescriptionChange,
+  onTeaserChange,
+  onUnlockedNoteChange,
+  onCategoryChange,
+  onUnlockModeChange,
+  onRequiredPuzzleIdChange,
+  onSortOrderChange,
+  onStatusChange,
+  onSave,
+  onCancel,
+}: {
+  title: string;
+  description: string;
+  teaser: string;
+  unlockedNote: string;
+  category: StudioCategory;
+  unlockMode: StudioUnlockMode;
+  requiredPuzzleId: string;
+  sortOrder: string;
+  status: StudioItemStatus;
+  recentMagicPuzzles: MagicPuzzleRow[];
+  isSaving: boolean;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onTeaserChange: (value: string) => void;
+  onUnlockedNoteChange: (value: string) => void;
+  onCategoryChange: (value: StudioCategory) => void;
+  onUnlockModeChange: (value: StudioUnlockMode) => void;
+  onRequiredPuzzleIdChange: (value: string) => void;
+  onSortOrderChange: (value: string) => void;
+  onStatusChange: (value: StudioItemStatus) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-4 grid gap-4 rounded-2xl border border-white/10 bg-black/25 p-4 md:grid-cols-2">
+      <FormInput
+        label="标题"
+        value={title}
+        onChange={onTitleChange}
+        tone="amber"
+      />
+
+      <FormSelect<StudioCategory>
+        label="分类"
+        value={category}
+        onChange={onCategoryChange}
+        tone="amber"
+      >
+        <option value="sunlight">日光底片</option>
+        <option value="heartbeat">心跳短片</option>
+        <option value="rose">玫瑰暗格</option>
+        <option value="bloopers">笨蛋花絮</option>
+      </FormSelect>
+
+      <FormSelect<StudioUnlockMode>
+        label="解锁方式"
+        value={unlockMode}
+        onChange={(nextMode) => {
+          onUnlockModeChange(nextMode);
+
+          if (nextMode !== "magic_puzzle") {
+            onRequiredPuzzleIdChange("");
+          }
+        }}
+        tone="amber"
+      >
+        <option value="always">默认开放</option>
+        <option value="magic_puzzle">Magic 谜题解锁</option>
+        <option value="manual">手动解锁，后续扩展</option>
+        <option value="password">密码解锁，后续扩展</option>
+      </FormSelect>
+
+      <FormSelect<StudioItemStatus>
+        label="状态"
+        value={status}
+        onChange={onStatusChange}
+        tone="amber"
+      >
+        <option value="active">开放</option>
+        <option value="hidden">隐藏</option>
+      </FormSelect>
+
+      {unlockMode === "magic_puzzle" ? (
+        <FormSelect<string>
+          label="绑定 Magic 谜题"
+          value={requiredPuzzleId}
+          onChange={onRequiredPuzzleIdChange}
+          tone="amber"
+          spanFull
+        >
+          <option value="">选择一个谜题</option>
+          {recentMagicPuzzles.map((puzzle) => (
+            <option key={puzzle.id} value={puzzle.id}>
+              {puzzle.title_cn} · {puzzle.slug}
+            </option>
+          ))}
+        </FormSelect>
+      ) : null}
+
+      <FormInput
+        label="排序值"
+        type="number"
+        value={sortOrder}
+        onChange={onSortOrderChange}
+        tone="amber"
+      />
+
+      <FormTextarea
+        label="外层预告"
+        value={teaser}
+        onChange={onTeaserChange}
+        tone="amber"
+      />
+
+      <FormTextarea
+        label="内容描述"
+        value={description}
+        onChange={onDescriptionChange}
+        minHeightClass="min-h-24"
+        tone="amber"
+      />
+
+      <FormTextarea
+        label="解锁后说明"
+        value={unlockedNote}
+        onChange={onUnlockedNoteChange}
+        tone="amber"
+      />
+
+      <div className="flex flex-wrap gap-3 md:col-span-2">
+        <ActionButton
+          onClick={onSave}
+          disabled={isSaving}
+          tone="amber"
+        >
+          {isSaving ? "保存中……" : "保存修改"}
+        </ActionButton>
+
+        <ActionButton
+          onClick={onCancel}
+          tone="stone"
+        >
+          取消
+        </ActionButton>
+      </div>
+    </div>
+  );
+}
+
+function StudioItemManageCard({
+  item,
+  isEditing,
+  isSaving,
+  isDeleting,
+  recentMagicPuzzles,
+  editState,
+  onStartEdit,
+  onSetStatus,
+  onDelete,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  item: StudioItemRow;
+  isEditing: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  recentMagicPuzzles: MagicPuzzleRow[];
+  editState: {
+    title: string;
+    description: string;
+    teaser: string;
+    unlockedNote: string;
+    category: StudioCategory;
+    unlockMode: StudioUnlockMode;
+    requiredPuzzleId: string;
+    sortOrder: string;
+    status: StudioItemStatus;
+    setTitle: (value: string) => void;
+    setDescription: (value: string) => void;
+    setTeaser: (value: string) => void;
+    setUnlockedNote: (value: string) => void;
+    setCategory: (value: StudioCategory) => void;
+    setUnlockMode: (value: StudioUnlockMode) => void;
+    setRequiredPuzzleId: (value: string) => void;
+    setSortOrder: (value: string) => void;
+    setStatus: (value: StudioItemStatus) => void;
+  };
+  onStartEdit: (item: StudioItemRow) => void;
+  onSetStatus: (item: StudioItemRow, status: StudioItemStatus) => void;
+  onDelete: (item: StudioItemRow) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-stone-100">
+            {item.title_cn}
+          </p>
+
+          <p className="mt-1 text-xs text-stone-500">
+            {getStudioCategoryLabel(item.category)} · {item.media_type} ·{" "}
+            {getStudioUnlockModeLabel(item.unlock_mode)}
+            {item.required_puzzle_title_cn
+              ? ` · ${item.required_puzzle_title_cn}`
+              : ""}{" "}
+            · 排序 {item.sort_order} · {formatDateTime(item.created_at)}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone={item.status === "active" ? "emerald" : "stone"}>
+            {getStudioStatusLabel(item.status)}
+          </StatusBadge>
+
+          <StatusBadge tone="amber">
+            {item.is_unlocked ? "已解锁" : "未解锁"}
+          </StatusBadge>
+
+          <ActionButton
+            onClick={() => onStartEdit(item)}
+            tone="stone"
+            compact
+          >
+            编辑
+          </ActionButton>
+
+          <ActionButton
+            onClick={() =>
+              onSetStatus(
+                item,
+                item.status === "active" ? "hidden" : "active",
+              )
+            }
+            disabled={isSaving}
+            tone="violet"
+            compact
+          >
+            {item.status === "active" ? "隐藏" : "恢复"}
+          </ActionButton>
+
+          <ActionButton
+            onClick={() => onDelete(item)}
+            disabled={isDeleting}
+            tone="red"
+            compact
+          >
+            {isDeleting ? "删除中……" : "删除"}
+          </ActionButton>
+        </div>
+      </div>
+
+      {isEditing ? (
+        <StudioEditForm
+          title={editState.title}
+          description={editState.description}
+          teaser={editState.teaser}
+          unlockedNote={editState.unlockedNote}
+          category={editState.category}
+          unlockMode={editState.unlockMode}
+          requiredPuzzleId={editState.requiredPuzzleId}
+          sortOrder={editState.sortOrder}
+          status={editState.status}
+          recentMagicPuzzles={recentMagicPuzzles}
+          isSaving={isSaving}
+          onTitleChange={editState.setTitle}
+          onDescriptionChange={editState.setDescription}
+          onTeaserChange={editState.setTeaser}
+          onUnlockedNoteChange={editState.setUnlockedNote}
+          onCategoryChange={editState.setCategory}
+          onUnlockModeChange={editState.setUnlockMode}
+          onRequiredPuzzleIdChange={editState.setRequiredPuzzleId}
+          onSortOrderChange={editState.setSortOrder}
+          onStatusChange={editState.setStatus}
+          onSave={onSaveEdit}
+          onCancel={onCancelEdit}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PendingGiftReviewCard({
+  gift,
+  selectedImageFile,
+  isReviewing,
+  onImageChange,
+  onActivate,
+}: {
+  gift: PendingGift;
+  selectedImageFile: File | null;
+  isReviewing: boolean;
+  onImageChange: (giftId: string, file: File | null) => void;
+  onActivate: (giftId: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-semibold">{gift.title_cn}</p>
+          <p className="mt-1 text-sm text-stone-400">
+            {gift.price} 星光值 · {formatDateTime(gift.created_at)}
+          </p>
+        </div>
+
+        <StatusBadge tone="amber">待审核</StatusBadge>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(event) =>
+            onImageChange(gift.id, event.target.files?.[0] ?? null)
+          }
+          className="block w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-200 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
+        />
+
+        <p className="text-xs text-stone-500">
+          {selectedImageFile ? selectedImageFile.name : "请选择审核上架图片。"}
+        </p>
+
+        <ActionButton
+          onClick={() => onActivate(gift.id)}
+          disabled={isReviewing}
+          tone="amber"
+        >
+          {isReviewing ? "正在上架……" : "上传图片并上架"}
+        </ActionButton>
+      </div>
+    </div>
+  );
+}
+
+function RedemptionManageCard({
+  redemption,
+  arrivalValue,
+  isSaving,
+  onArrivalChange,
+  onSaveArrival,
+}: {
+  redemption: RedemptionRow;
+  arrivalValue: string;
+  isSaving: boolean;
+  onArrivalChange: (redemptionId: string, value: string) => void;
+  onSaveArrival: (redemptionId: string) => void;
+}) {
+  const canEditArrival = redemption.status === "pending_receipt";
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-semibold">
+            {redemption.giftTitle ?? "未知礼物"}
+          </p>
+
+          <p className="mt-1 text-sm text-stone-400">
+            {redemption.price_paid} 星光值 ·{" "}
+            {formatDateTime(redemption.created_at)}
+          </p>
+
+          <p className="mt-1 text-xs text-stone-500">
+            到货：{formatDateTime(redemption.expected_arrival_at)}
+          </p>
+
+          {canEditArrival ? (
+            <div className="mt-4 grid gap-3">
+              <input
+                type="datetime-local"
+                value={arrivalValue}
+                onChange={(event) =>
+                  onArrivalChange(redemption.id, event.target.value)
+                }
+                className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 outline-none focus:border-emerald-200/50"
+              />
+
+              <ActionButton
+                onClick={() => onSaveArrival(redemption.id)}
+                disabled={isSaving}
+                tone="emerald"
+              >
+                {isSaving ? "正在保存……" : "保存预计到货时间"}
+              </ActionButton>
+            </div>
+          ) : null}
+        </div>
+
+        <StatusBadge tone="emerald">
+          {getRedemptionStatusLabel(redemption.status)}
+        </StatusBadge>
+      </div>
+    </div>
+  );
+}
+
+function MessageActivityCard({ message }: { message: MessageRow }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="line-clamp-3 text-sm text-stone-200">
+        {message.content}
+      </p>
+
+      <p className="mt-3 text-xs text-stone-500">
+        {message.author_display_name ?? "匿名"} ·{" "}
+        {message.author_role ?? "unknown"} · {formatDateTime(message.created_at)}
+      </p>
+    </div>
+  );
+}
+
+function EnergyTransactionCard({
+  transaction,
+}: {
+  transaction: EnergyTransactionRow;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-semibold">
+            {transaction.description ?? transaction.source}
+          </p>
+
+          <p className="mt-1 text-xs text-stone-500">
+            {transaction.source} · {formatDateTime(transaction.created_at)}
+          </p>
+        </div>
+
+        <span
+          className={
+            transaction.amount >= 0
+              ? "text-lg font-semibold text-emerald-200"
+              : "text-lg font-semibold text-rose-200"
+          }
+        >
+          {getAmountLabel(transaction.amount)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function OverviewDashboard({
+  pendingGiftsCount,
+  pendingReceiptCount,
+  activeMagicCount,
+  hiddenMagicCount,
+  totalStudioCount,
+  activeStudioCount,
+  hiddenStudioCount,
+  messages,
+  recentEnergyNetAmount,
+  energyTransactionCount,
+  onSelectTab,
+}: {
+  pendingGiftsCount: number;
+  pendingReceiptCount: number;
+  activeMagicCount: number;
+  hiddenMagicCount: number;
+  totalStudioCount: number;
+  activeStudioCount: number;
+  hiddenStudioCount: number;
+  messages: MessageRow[];
+  recentEnergyNetAmount: number;
+  energyTransactionCount: number;
+  onSelectTab: (tab: AdminTab) => void;
+}) {
+  return (
+    <>
+      <section className="grid gap-4 md:grid-cols-4">
+        <OverviewStatCard
+          label="待审核礼物"
+          value={pendingGiftsCount}
+          onClick={() => onSelectTab("market")}
+        />
+
+        <OverviewStatCard
+          label="待签收兑换"
+          value={pendingReceiptCount}
+          onClick={() => onSelectTab("market")}
+        />
+
+        <OverviewStatCard
+          label="开放谜题"
+          value={activeMagicCount}
+          detail={`隐藏 ${hiddenMagicCount}`}
+          onClick={() => onSelectTab("magic")}
+        />
+
+        <OverviewStatCard
+          label="暗房内容"
+          value={totalStudioCount}
+          detail={`开放 ${activeStudioCount} · 隐藏 ${hiddenStudioCount}`}
+          onClick={() => onSelectTab("studio")}
+        />
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+          <h2 className="text-lg font-semibold">最近留言</h2>
+
+          <div className="mt-4 space-y-3">
+            {messages.slice(0, 3).map((message) => (
+              <MessageActivityCard key={message.id} message={message} />
+            ))}
+
+            {messages.length === 0 ? (
+              <p className="text-sm text-stone-500">暂无留言。</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+          <h2 className="text-lg font-semibold">最近星光值净变化</h2>
+
+          <p
+            className={[
+              "mt-4 text-4xl font-semibold",
+              recentEnergyNetAmount >= 0 ? "text-emerald-200" : "text-rose-200",
+            ].join(" ")}
+          >
+            {getAmountLabel(recentEnergyNetAmount)}
+          </p>
+
+          <p className="mt-2 text-sm text-stone-500">
+            基于最近 {energyTransactionCount} 条流水。
+          </p>
+        </div>
+
+        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+          <h2 className="text-lg font-semibold">快捷入口</h2>
+
+          <div className="mt-4 grid gap-2">
+            <QuickAdminAction
+              label="发布或审核礼物"
+              onClick={() => onSelectTab("market")}
+            />
+
+            <QuickAdminAction
+              label="创建魔法谜题"
+              onClick={() => onSelectTab("magic")}
+            />
+
+            <QuickAdminAction
+              label="管理记忆暗房"
+              onClick={() => onSelectTab("studio")}
+            />
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+function OverviewStatCard({
+  label,
+  value,
+  detail,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-3xl border border-white/10 bg-white/10 p-5 text-left transition hover:bg-white/15"
+    >
+      <p className="text-sm text-stone-400">{label}</p>
+      <p className="mt-2 text-3xl font-semibold">{value}</p>
+
+      {detail ? (
+        <p className="mt-1 text-xs text-stone-500">{detail}</p>
+      ) : null}
+    </button>
+  );
+}
+
+function QuickAdminAction({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left text-sm text-stone-200 transition hover:bg-white/10"
+    >
+      {label}
+    </button>
+  );
+}
+
+function MagicCreateForm({
+  slug,
+  title,
+  teaser,
+  riddle,
+  hint,
+  unlockNote,
+  answer,
+  status,
+  publishAt,
+  rewardEnergy,
+  surpriseTitle,
+  surpriseNote,
+  isCreating,
+  statusMessage,
+  onSlugChange,
+  onTitleChange,
+  onTeaserChange,
+  onRiddleChange,
+  onHintChange,
+  onUnlockNoteChange,
+  onAnswerChange,
+  onStatusChange,
+  onPublishAtChange,
+  onRewardEnergyChange,
+  onSurpriseTitleChange,
+  onSurpriseNoteChange,
+  onCreate,
+}: {
+  slug: string;
+  title: string;
+  teaser: string;
+  riddle: string;
+  hint: string;
+  unlockNote: string;
+  answer: string;
+  status: MagicPuzzleStatus;
+  publishAt: string;
+  rewardEnergy: string;
+  surpriseTitle: string;
+  surpriseNote: string;
+  isCreating: boolean;
+  statusMessage: string;
+  onSlugChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
+  onTeaserChange: (value: string) => void;
+  onRiddleChange: (value: string) => void;
+  onHintChange: (value: string) => void;
+  onUnlockNoteChange: (value: string) => void;
+  onAnswerChange: (value: string) => void;
+  onStatusChange: (value: MagicPuzzleStatus) => void;
+  onPublishAtChange: (value: string) => void;
+  onRewardEnergyChange: (value: string) => void;
+  onSurpriseTitleChange: (value: string) => void;
+  onSurpriseNoteChange: (value: string) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <FormInput
+          label="谜题标题"
+          value={title}
+          onChange={onTitleChange}
+          placeholder="例如：月亮写下的线索"
+          tone="violet"
+        />
+
+        <FormInput
+          label="Slug，可选"
+          value={slug}
+          onChange={onSlugChange}
+          placeholder="例如：moon-clue-001"
+          tone="violet"
+        />
+
+        <FormInput
+          label="上线时间"
+          type="datetime-local"
+          value={publishAt}
+          onChange={onPublishAtChange}
+          help="这里按你当前设备时区填写；保存后会转换成绝对时间。后台会同时显示多伦多时间和北京时间。"
+          tone="violet"
+        />
+
+        <FormInput
+          label="答对奖励星光值"
+          type="number"
+          min="0"
+          value={rewardEnergy}
+          onChange={onRewardEnergyChange}
+          help="默认 3。答对后只奖励第一次。"
+          tone="violet"
+        />
+
+        <FormSelect<MagicPuzzleStatus>
+          label="状态"
+          value={status}
+          onChange={onStatusChange}
+          tone="violet"
+        >
+          <option value="active">开放</option>
+          <option value="hidden">隐藏</option>
+        </FormSelect>
+
+        <FormTextarea
+          label="水晶球外层预告"
+          value={teaser}
+          onChange={onTeaserChange}
+          placeholder="例如：这颗水晶球里藏着一段和晚安有关的秘密。"
+          help="这段会显示在水晶球外层，不是谜题正文，也不是付费线索。"
+          tone="violet"
+        />
+
+        <FormTextarea
+          label="谜题正文"
+          value={riddle}
+          onChange={onRiddleChange}
+          placeholder="写下线索、问题或谜面。"
+          minHeightClass="min-h-28"
+          tone="violet"
+        />
+
+        <FormTextarea
+          label="提示，可选"
+          value={hint}
+          onChange={onHintChange}
+          placeholder="答错时可以展示的提示。"
+          tone="violet"
+        />
+
+        <FormTextarea
+          label="解锁后文案，可选"
+          value={unlockNote}
+          onChange={onUnlockNoteChange}
+          placeholder="答对后显示的话。"
+          tone="violet"
+        />
+
+        <FormInput
+          label="暗房惊喜标题，可选"
+          value={surpriseTitle}
+          onChange={onSurpriseTitleChange}
+          placeholder="例如：记忆暗房已解锁"
+          tone="violet"
+          spanFull
+        />
+
+        <FormTextarea
+          label="暗房惊喜提醒，可选"
+          value={surpriseNote}
+          onChange={onSurpriseNoteChange}
+          placeholder="例如：日光底片里有一张新的照片醒来了，去记忆暗房看看。"
+          tone="violet"
+        />
+
+        <FormInput
+          label="正确答案"
+          value={answer}
+          onChange={onAnswerChange}
+          placeholder="例如：520"
+          help="答案会进入 magic_puzzle_answers，不会展示给女主人公。"
+          tone="violet"
+          spanFull
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <ActionButton
+          onClick={onCreate}
+          disabled={isCreating}
+          tone="violet"
+        >
+          {isCreating ? "正在创建……" : "创建魔法谜题"}
+        </ActionButton>
+
+        <StatusLine message={statusMessage} tone="violet" />
+      </div>
+    </>
+  );
+}
+
+function MagicPuzzleList({ puzzles }: { puzzles: MagicPuzzleRow[] }) {
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
+      <h3 className="text-sm font-semibold text-stone-200">最近谜题</h3>
+
+      {puzzles.length === 0 ? (
+        <p className="mt-3 text-sm text-stone-500">暂无魔法谜题。</p>
+      ) : (
+        <div className="mt-3 grid gap-3">
+          {puzzles.map((puzzle) => (
+            <MagicPuzzleListCard key={puzzle.id} puzzle={puzzle} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MagicPuzzleListCard({ puzzle }: { puzzle: MagicPuzzleRow }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-stone-100">
+            {puzzle.title_cn}
+          </p>
+
+          <p className="mt-1 text-xs text-stone-500">
+            {puzzle.slug} · 奖励 +{puzzle.reward_energy} · 多伦多{" "}
+            {formatTorontoTime(puzzle.publish_at)} · 北京{" "}
+            {formatBeijingTime(puzzle.publish_at)}
+          </p>
+        </div>
+
+        <StatusBadge tone="violet">
+          {puzzle.status === "active" ? "开放" : "隐藏"}
+        </StatusBadge>
+      </div>
+    </div>
+  );
+}
+
+function StudioCreateForm({
+  title,
+  description,
+  teaser,
+  unlockedNote,
+  category,
+  unlockMode,
+  requiredPuzzleId,
+  sortOrder,
+  imageFile,
+  recentMagicPuzzles,
+  isCreating,
+  statusMessage,
+  onTitleChange,
+  onDescriptionChange,
+  onTeaserChange,
+  onUnlockedNoteChange,
+  onCategoryChange,
+  onUnlockModeChange,
+  onRequiredPuzzleIdChange,
+  onSortOrderChange,
+  onImageFileChange,
+  onCreate,
+}: {
+  title: string;
+  description: string;
+  teaser: string;
+  unlockedNote: string;
+  category: StudioCategory;
+  unlockMode: StudioUnlockMode;
+  requiredPuzzleId: string;
+  sortOrder: string;
+  imageFile: File | null;
+  recentMagicPuzzles: MagicPuzzleRow[];
+  isCreating: boolean;
+  statusMessage: string;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onTeaserChange: (value: string) => void;
+  onUnlockedNoteChange: (value: string) => void;
+  onCategoryChange: (value: StudioCategory) => void;
+  onUnlockModeChange: (value: StudioUnlockMode) => void;
+  onRequiredPuzzleIdChange: (value: string) => void;
+  onSortOrderChange: (value: string) => void;
+  onImageFileChange: (file: File | null) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <FormInput
+          label="标题"
+          value={title}
+          onChange={onTitleChange}
+          placeholder="例如：第一张日光底片"
+          tone="amber"
+        />
+
+        <FormSelect<StudioCategory>
+          label="分类"
+          value={category}
+          onChange={onCategoryChange}
+          tone="amber"
+        >
+          <option value="sunlight">日光底片</option>
+          <option value="heartbeat">心跳短片</option>
+          <option value="rose">玫瑰暗格</option>
+          <option value="bloopers">笨蛋花絮</option>
+        </FormSelect>
+
+        <FormSelect<StudioUnlockMode>
+          label="解锁方式"
+          value={unlockMode}
+          onChange={(nextMode) => {
+            onUnlockModeChange(nextMode);
+
+            if (nextMode !== "magic_puzzle") {
+              onRequiredPuzzleIdChange("");
+            }
+          }}
+          tone="amber"
+        >
+          <option value="always">默认开放</option>
+          <option value="magic_puzzle">Magic 谜题解锁</option>
+          <option value="manual">手动解锁，后续扩展</option>
+          <option value="password">密码解锁，后续扩展</option>
+        </FormSelect>
+
+        <FormInput
+          label="排序值"
+          type="number"
+          value={sortOrder}
+          onChange={onSortOrderChange}
+          tone="amber"
+        />
+
+        {unlockMode === "magic_puzzle" ? (
+          <FormSelect<string>
+            label="绑定 Magic 谜题"
+            value={requiredPuzzleId}
+            onChange={onRequiredPuzzleIdChange}
+            tone="amber"
+            spanFull
+          >
+            <option value="">选择一个谜题</option>
+            {recentMagicPuzzles.map((puzzle) => (
+              <option key={puzzle.id} value={puzzle.id}>
+                {puzzle.title_cn} · {puzzle.slug}
+              </option>
+            ))}
+          </FormSelect>
+        ) : null}
+
+        <label className="grid gap-2 md:col-span-2">
+          <span className="text-sm text-stone-300">素材文件</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+            onChange={(event) => onImageFileChange(event.target.files?.[0] ?? null)}
+            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
+          />
+          <span className="text-xs text-stone-500">
+            {imageFile
+              ? imageFile.name
+              : "支持图片和短视频。建议视频先控制在较小体积。"}
+          </span>
+        </label>
+
+        <FormTextarea
+          label="外层预告"
+          value={teaser}
+          onChange={onTeaserChange}
+          placeholder="例如：这枚底片还没有完全显影。"
+          tone="amber"
+        />
+
+        <FormTextarea
+          label="内容描述"
+          value={description}
+          onChange={onDescriptionChange}
+          placeholder="图片或视频打开后显示的描述。"
+          minHeightClass="min-h-24"
+          tone="amber"
+        />
+
+        <FormTextarea
+          label="解锁后说明"
+          value={unlockedNote}
+          onChange={onUnlockedNoteChange}
+          placeholder="例如：这张底片是在某个谜题被点亮后显影的。"
+          tone="amber"
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <ActionButton
+          onClick={onCreate}
+          disabled={isCreating}
+          tone="amber"
+        >
+          {isCreating ? "正在创建……" : "创建暗房内容"}
+        </ActionButton>
+
+        <StatusLine message={statusMessage} tone="amber" />
+      </div>
+    </>
+  );
+}
+
+function StudioManagePanel({
+  items,
+  filteredItems,
+  categoryFilter,
+  statusFilter,
+  manageStatus,
+  recentMagicPuzzles,
+  editingItemId,
+  savingItemId,
+  deletingItemId,
+  editState,
+  onCategoryFilterChange,
+  onStatusFilterChange,
+  onStartEdit,
+  onSetStatus,
+  onDelete,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  items: StudioItemRow[];
+  filteredItems: StudioItemRow[];
+  categoryFilter: StudioCategoryFilter;
+  statusFilter: StudioStatusFilter;
+  manageStatus: string;
+  recentMagicPuzzles: MagicPuzzleRow[];
+  editingItemId: string | null;
+  savingItemId: string | null;
+  deletingItemId: string | null;
+  editState: {
+    title: string;
+    description: string;
+    teaser: string;
+    unlockedNote: string;
+    category: StudioCategory;
+    unlockMode: StudioUnlockMode;
+    requiredPuzzleId: string;
+    sortOrder: string;
+    status: StudioItemStatus;
+    setTitle: (value: string) => void;
+    setDescription: (value: string) => void;
+    setTeaser: (value: string) => void;
+    setUnlockedNote: (value: string) => void;
+    setCategory: (value: StudioCategory) => void;
+    setUnlockMode: (value: StudioUnlockMode) => void;
+    setRequiredPuzzleId: (value: string) => void;
+    setSortOrder: (value: string) => void;
+    setStatus: (value: StudioItemStatus) => void;
+  };
+  onCategoryFilterChange: (value: StudioCategoryFilter) => void;
+  onStatusFilterChange: (value: StudioStatusFilter) => void;
+  onStartEdit: (item: StudioItemRow) => void;
+  onSetStatus: (item: StudioItemRow, status: StudioItemStatus) => void;
+  onDelete: (item: StudioItemRow) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
+      <h3 className="text-sm font-semibold text-stone-200">最近暗房内容</h3>
+
+      <StatusLine message={manageStatus} tone="amber" />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <FormSelect<StudioCategoryFilter>
+          label="分类筛选"
+          value={categoryFilter}
+          onChange={onCategoryFilterChange}
+          tone="amber"
+        >
+          <option value="all">全部分类</option>
+          <option value="sunlight">日光底片</option>
+          <option value="heartbeat">心跳短片</option>
+          <option value="rose">玫瑰暗格</option>
+          <option value="bloopers">笨蛋花絮</option>
+        </FormSelect>
+
+        <FormSelect<StudioStatusFilter>
+          label="状态筛选"
+          value={statusFilter}
+          onChange={onStatusFilterChange}
+          tone="amber"
+        >
+          <option value="all">全部状态</option>
+          <option value="active">开放中</option>
+          <option value="hidden">已隐藏</option>
+        </FormSelect>
+
+        <p className="text-xs text-stone-500">
+          显示 {filteredItems.length} / {items.length}
+        </p>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="mt-3 text-sm text-stone-500">暂无暗房内容。</p>
+      ) : filteredItems.length === 0 ? (
+        <p className="mt-3 text-sm text-stone-500">当前筛选下没有暗房内容。</p>
+      ) : (
+        <div className="mt-3 grid gap-3">
+          {filteredItems.map((item) => (
+            <StudioItemManageCard
+              key={item.id}
+              item={item}
+              isEditing={editingItemId === item.id}
+              isSaving={savingItemId === item.id}
+              isDeleting={deletingItemId === item.id}
+              recentMagicPuzzles={recentMagicPuzzles}
+              editState={editState}
+              onStartEdit={onStartEdit}
+              onSetStatus={onSetStatus}
+              onDelete={onDelete}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarketPublishForm({
+  title,
+  description,
+  price,
+  icon,
+  giftType,
+  imageFile,
+  isPublishing,
+  statusMessage,
+  onTitleChange,
+  onDescriptionChange,
+  onPriceChange,
+  onIconChange,
+  onGiftTypeChange,
+  onImageFileChange,
+  onPublish,
+}: {
+  title: string;
+  description: string;
+  price: string;
+  icon: string;
+  giftType: GiftType;
+  imageFile: File | null;
+  isPublishing: boolean;
+  statusMessage: string;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onPriceChange: (value: string) => void;
+  onIconChange: (value: string) => void;
+  onGiftTypeChange: (value: GiftType) => void;
+  onImageFileChange: (file: File | null) => void;
+  onPublish: () => void;
+}) {
+  return (
+    <>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <FormInput
+          label="礼物标题"
+          value={title}
+          onChange={onTitleChange}
+          placeholder="例如：一杯热奶茶"
+          tone="amber"
+        />
+
+        <FormInput
+          label="星光值价格"
+          type="number"
+          min="1"
+          value={price}
+          onChange={onPriceChange}
+          tone="amber"
+        />
+
+        <FormInput
+          label="礼物图标"
+          value={icon}
+          onChange={onIconChange}
+          placeholder="◆"
+          tone="amber"
+        />
+
+        <FormSelect<GiftType>
+          label="礼物类型"
+          value={giftType}
+          onChange={onGiftTypeChange}
+          tone="amber"
+        >
+          <option value="virtual">虚拟礼物</option>
+          <option value="physical">实体礼物</option>
+          <option value="date_plan">约会计划</option>
+        </FormSelect>
+
+        <FormTextarea
+          label="礼物描述"
+          value={description}
+          onChange={onDescriptionChange}
+          placeholder="写下这个礼物的说明。"
+          minHeightClass="min-h-28"
+          tone="amber"
+        />
+
+        <label className="grid gap-2 md:col-span-2">
+          <span className="text-sm text-stone-300">礼物图片</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={(event) =>
+              onImageFileChange(event.target.files?.[0] ?? null)
+            }
+            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
+          />
+          <span className="text-xs text-stone-500">
+            {imageFile
+              ? imageFile.name
+              : "可选。上传后会显示在礼物卡片中。"}
+          </span>
+        </label>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <ActionButton
+          onClick={onPublish}
+          disabled={isPublishing}
+          tone="amber"
+        >
+          {isPublishing ? "正在发布……" : "直接发布礼物"}
+        </ActionButton>
+
+        <StatusLine message={statusMessage} tone="amber" />
+      </div>
+    </>
+  );
+}
+
+function MarketManagePanel({
+  pendingGifts,
+  redemptions,
+  reviewStatus,
+  arrivalStatus,
+  reviewImageFiles,
+  reviewingGiftId,
+  savingArrivalId,
+  arrivalInputs,
+  onReviewImageChange,
+  onActivateGift,
+  onArrivalChange,
+  onSaveArrival,
+}: {
+  pendingGifts: PendingGift[];
+  redemptions: RedemptionRow[];
+  reviewStatus: string;
+  arrivalStatus: string;
+  reviewImageFiles: Record<string, File | null>;
+  reviewingGiftId: string | null;
+  savingArrivalId: string | null;
+  arrivalInputs: Record<string, string>;
+  onReviewImageChange: (giftId: string, file: File | null) => void;
+  onActivateGift: (giftId: string) => void;
+  onArrivalChange: (redemptionId: string, value: string) => void;
+  onSaveArrival: (redemptionId: string) => void;
+}) {
+  return (
+    <section className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="rounded-[2rem] border border-white/10 bg-black/20 p-6">
+        <h2 className="text-xl font-semibold">待审核礼物需求</h2>
+
+        {reviewStatus ? (
+          <p className="mt-3 rounded-2xl border border-amber-200/20 bg-amber-100/10 px-4 py-3 text-sm text-amber-100">
+            {reviewStatus}
+          </p>
+        ) : null}
+
+        <div className="mt-5 space-y-3">
+          {pendingGifts.length === 0 ? (
+            <p className="text-sm text-stone-400">暂无待审核礼物。</p>
+          ) : (
+            pendingGifts.map((gift) => (
+              <PendingGiftReviewCard
+                key={gift.id}
+                gift={gift}
+                selectedImageFile={reviewImageFiles[gift.id] ?? null}
+                isReviewing={reviewingGiftId === gift.id}
+                onImageChange={onReviewImageChange}
+                onActivate={onActivateGift}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-white/10 bg-black/20 p-6">
+        <h2 className="text-xl font-semibold">近期兑换记录</h2>
+
+        {arrivalStatus ? (
+          <p className="mt-3 rounded-2xl border border-emerald-200/20 bg-emerald-100/10 px-4 py-3 text-sm text-emerald-100">
+            {arrivalStatus}
+          </p>
+        ) : null}
+
+        <div className="mt-5 space-y-3">
+          {redemptions.length === 0 ? (
+            <p className="text-sm text-stone-400">暂无兑换记录。</p>
+          ) : (
+            redemptions.map((redemption) => (
+              <RedemptionManageCard
+                key={redemption.id}
+                redemption={redemption}
+                arrivalValue={arrivalInputs[redemption.id] ?? ""}
+                isSaving={savingArrivalId === redemption.id}
+                onArrivalChange={onArrivalChange}
+                onSaveArrival={onSaveArrival}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ActivityPanel({
+  messages,
+  energyTransactions,
+}: {
+  messages: MessageRow[];
+  energyTransactions: EnergyTransactionRow[];
+}) {
+  return (
+    <section className="grid gap-6 lg:grid-cols-2">
+      <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+        <h2 className="text-xl font-semibold">最近留言</h2>
+
+        <div className="mt-5 space-y-3">
+          {messages.length === 0 ? (
+            <p className="text-sm text-stone-400">暂无留言。</p>
+          ) : (
+            messages.map((message) => (
+              <MessageActivityCard key={message.id} message={message} />
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+        <h2 className="text-xl font-semibold">最近星光值流水</h2>
+
+        <div className="mt-5 space-y-3">
+          {energyTransactions.length === 0 ? (
+            <p className="text-sm text-stone-400">暂无星光值流水。</p>
+          ) : (
+            energyTransactions.map((transaction) => (
+              <EnergyTransactionCard
+                key={transaction.id}
+                transaction={transaction}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
