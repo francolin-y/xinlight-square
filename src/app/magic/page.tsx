@@ -12,7 +12,8 @@ type LocalizedText = {
 };
 
 type MagicPuzzleStatus = "sleeping" | "available" | "solved" | "hidden";
-type MagicLoadStatus = "loading" | "allowed" | "signedOut" | "forbidden" | "error";
+type MagicLoadStatus = "loading" | "allowed" | "forbidden" | "error";
+type ViewerRole = "admin" | "heroine" | "fan" | "guest" | "anonymous";
 
 type MagicPuzzleRpcRow = {
   id: string;
@@ -86,7 +87,10 @@ const pageCopies = {
     question: "题目",
     answer: "答案",
     answerPlaceholder: "输入你的答案",
+    answerOnlyHeroinePlaceholder: "仅小欣可以输入答案",
     submitAnswer: "提交答案",
+    submitOnlyHeroine: "仅小欣可提交",
+    answerOnlyHeroineNotice: "这颗水晶球可以被所有人查看，但只有小欣可以输入答案。",
     correct: "答对了",
     wrong: "答案不对，再想想",
     close: "关闭",
@@ -134,7 +138,10 @@ const pageCopies = {
     question: "Question",
     answer: "Answer",
     answerPlaceholder: "Enter your answer",
+    answerOnlyHeroinePlaceholder: "Only Xiaoxin can enter the answer",
     submitAnswer: "Submit answer",
+    submitOnlyHeroine: "Only Xiaoxin can submit",
+    answerOnlyHeroineNotice: "Everyone can view this crystal orb, but only Xiaoxin can enter the answer.",
     correct: "Correct",
     wrong: "Not quite. Try again.",
     close: "Close",
@@ -297,6 +304,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
     const [magicLoadStatus, setMagicLoadStatus] =
       useState<MagicLoadStatus>("loading");
     const [magicLoadMessage, setMagicLoadMessage] = useState("");
+    const [viewerRole, setViewerRole] = useState<ViewerRole>("anonymous");
 
     const monthOptions = useMemo(() => {
       return Array.from(new Set(magicPuzzles.map((puzzle) => puzzle.month))).sort(
@@ -319,6 +327,8 @@ function getMonthLabel(monthValue: string, lang: Lang) {
     const selectedPuzzle =
       magicPuzzles.find((puzzle) => puzzle.id === selectedPuzzleId) ?? null;
 
+    const canSubmitAnswer = viewerRole === "heroine";
+      
     const filteredPuzzles = useMemo(() => {
       return magicPuzzles
         .filter((puzzle) => puzzle.month === selectedMonth)
@@ -348,17 +358,16 @@ function getMonthLabel(monthValue: string, lang: Lang) {
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError) {
-        setMagicLoadStatus("error");
-        setMagicLoadMessage(userError.message);
-        setMagicPuzzles([]);
-        return;
-      }
+      if (userError || !user) {
+        setViewerRole("anonymous");
+      } else {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
 
-      if (!user) {
-        setMagicLoadStatus("signedOut");
-        setMagicPuzzles([]);
-        return;
+        setViewerRole((profileData?.role as ViewerRole | undefined) ?? "guest");
       }
 
       const { data, error } = await supabase.rpc("get_magic_puzzles");
@@ -433,7 +442,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
     }
 
     async function submitAnswer() {
-      if (!selectedPuzzle) return;
+      if (!selectedPuzzle || !canSubmitAnswer) return;
 
       setAnswerResult(null);
       setAnswerMessage("");
@@ -561,7 +570,6 @@ function getMonthLabel(monthValue: string, lang: Lang) {
         {magicLoadStatus !== "allowed" ? (
           <div className="mb-6 rounded-[2rem] border border-white/10 bg-white/10 p-5 text-sm text-slate-200">
             {magicLoadStatus === "loading" ? page.loading : null}
-            {magicLoadStatus === "signedOut" ? page.signedOut : null}
             {magicLoadStatus === "forbidden" ? page.forbidden : null}
             {magicLoadStatus === "error" ? `${page.loadError} ${magicLoadMessage}` : null}
           </div>
@@ -810,27 +818,41 @@ function getMonthLabel(monthValue: string, lang: Lang) {
             ) : null}
 
             {selectedPuzzle.displayStatus !== "solved" ? (
-              <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
-              <input
-                value={answerInput}
-                onChange={(event) => setAnswerInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void submitAnswer();
-                  }
-                }}
-                placeholder={page.answerPlaceholder}
-                className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-white outline-none placeholder:text-white/40 focus:border-violet-200/70"
-              />
+              <div className="mt-6 grid gap-3">
+                {!canSubmitAnswer ? (
+                  <p className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm leading-6 text-violet-100">
+                    {page.answerOnlyHeroineNotice}
+                  </p>
+                ) : null}
 
-              <button
-                type="button"
-                onClick={() => void submitAnswer()}
-                className="rounded-full bg-violet-100 px-6 py-3 font-medium text-violet-950 transition hover:bg-white"
-              >
-                {page.submitAnswer}
-              </button>
-            </div>
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <input
+                    value={answerInput}
+                    onChange={(event) => setAnswerInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && canSubmitAnswer) {
+                        void submitAnswer();
+                      }
+                    }}
+                    disabled={!canSubmitAnswer}
+                    placeholder={
+                      canSubmitAnswer
+                        ? page.answerPlaceholder
+                        : page.answerOnlyHeroinePlaceholder
+                    }
+                    className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-white outline-none placeholder:text-white/40 focus:border-violet-200/70 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => void submitAnswer()}
+                    disabled={!canSubmitAnswer}
+                    className="rounded-full bg-violet-100 px-6 py-3 font-medium text-violet-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/45"
+                  >
+                    {canSubmitAnswer ? page.submitAnswer : page.submitOnlyHeroine}
+                  </button>
+                </div>
+              </div>
             ) : null}
 
             {answerResult ? (
