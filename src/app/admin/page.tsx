@@ -84,6 +84,8 @@ type MessageRow = {
   author_display_name: string | null;
   author_role: ProfileRole | null;
   created_at: string;
+  is_hidden: boolean;
+  hidden_at: string | null;
 };
 
 type EnergyTransactionRow = {
@@ -296,6 +298,8 @@ export default function AdminPage() {
   const [reviewingGiftId, setReviewingGiftId] = useState<string | null>(null);
   const [reviewStatus, setReviewStatus] = useState("");
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [messageManageStatus, setMessageManageStatus] = useState("");
+  const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(null);
   const [treeMessageWriteMode, setTreeMessageWriteMode] =
     useState<TreeWriteMode>("heroine_only");
   const [treeMessageSettingStatus, setTreeMessageSettingStatus] = useState("");
@@ -470,18 +474,6 @@ export default function AdminPage() {
         loadRecentMagicPuzzles(),
         loadRecentStudioItems(),
     ]);
-  }
-
-  async function loadTreeMessageSettings() {
-    const { data, error } = await supabase.rpc("get_tree_message_settings");
-
-    if (error) {
-        setErrorMessage(error.message);
-        return;
-    }
-
-    const nextMode = data?.[0]?.write_mode as TreeWriteMode | undefined;
-    setTreeMessageWriteMode(nextMode ?? "heroine_only");
   }
 
   async function loadPendingGifts() {
@@ -1040,12 +1032,66 @@ export default function AdminPage() {
     setIsSavingTreeMessageSetting(false);
   }
 
+  async function handleToggleMessageHidden(message: MessageRow) {
+    setUpdatingMessageId(message.id);
+    setMessageManageStatus(message.is_hidden ? "正在恢复留言……" : "正在隐藏留言……");
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+        .from("messages")
+        .update({
+        is_hidden: !message.is_hidden,
+        hidden_at: message.is_hidden ? null : new Date().toISOString(),
+        hidden_by: message.is_hidden ? null : user?.id ?? null,
+        })
+        .eq("id", message.id);
+
+    if (error) {
+        setMessageManageStatus(`操作失败：${error.message}`);
+        setUpdatingMessageId(null);
+        return;
+    }
+
+    setMessageManageStatus(message.is_hidden ? "留言已恢复显示。" : "留言已隐藏。");
+    setUpdatingMessageId(null);
+    await loadRecentMessages();
+  }
+
+  async function handleDeleteMessage(message: MessageRow) {
+    const confirmed = window.confirm("确定永久删除这条留言吗？此操作不可恢复。");
+
+    if (!confirmed) return;
+
+    setUpdatingMessageId(message.id);
+    setMessageManageStatus("正在删除留言……");
+
+    const { error } = await supabase
+        .from("messages")
+        .delete()
+        .eq("id", message.id);
+
+    if (error) {
+        setMessageManageStatus(`删除失败：${error.message}`);
+        setUpdatingMessageId(null);
+        return;
+    }
+
+    setMessageManageStatus("留言已删除。");
+    setUpdatingMessageId(null);
+    await loadRecentMessages();
+  }
+
   async function loadRecentMessages() {
     const { data, error } = await supabase
-      .from("messages")
-      .select("id, content, author_display_name, author_role, created_at")
-      .order("created_at", { ascending: false })
-      .limit(6);
+        .from("messages")
+        .select(
+            "id, content, author_display_name, author_role, created_at, is_hidden, hidden_at",
+        )
+        .order("created_at", { ascending: false })
+        .limit(20);
 
     if (error) {
       setErrorMessage(error.message);
@@ -1421,9 +1467,13 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
                 treeMessageWriteMode={treeMessageWriteMode}
                 treeMessageSettingStatus={treeMessageSettingStatus}
                 isSavingTreeMessageSetting={isSavingTreeMessageSetting}
+                messageManageStatus={messageManageStatus}
+                updatingMessageId={updatingMessageId}
                 onTreeMessageWriteModeChange={(nextMode) =>
                     void handleTreeMessageWriteModeChange(nextMode)
                 }
+                onToggleMessageHidden={(message) => void handleToggleMessageHidden(message)}
+                onDeleteMessage={(message) => void handleDeleteMessage(message)}
             />
         ) : null}
       </div>
@@ -2052,17 +2102,90 @@ function RedemptionManageCard({
   );
 }
 
-function MessageActivityCard({ message }: { message: MessageRow }) {
+function MessageActivityCard({
+  message,
+  updatingMessageId = null,
+  onToggleHidden,
+  onDeleteMessage,
+}: {
+  message: MessageRow;
+  updatingMessageId?: string | null;
+  onToggleHidden?: (message: MessageRow) => void;
+  onDeleteMessage?: (message: MessageRow) => void;
+}) {
+  const isUpdating = updatingMessageId === message.id;
+  const canManage = Boolean(onToggleHidden || onDeleteMessage);
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <p className="line-clamp-3 text-sm text-stone-200">
-        {message.content}
-      </p>
+    <div
+      className={[
+        "rounded-2xl border p-4",
+        message.is_hidden
+          ? "border-amber-100/20 bg-amber-100/10"
+          : "border-white/10 bg-black/20",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p
+          className={[
+            "line-clamp-3 text-sm",
+            message.is_hidden ? "text-stone-400" : "text-stone-200",
+          ].join(" ")}
+        >
+          {message.content}
+        </p>
+
+        {message.is_hidden ? (
+          <span className="shrink-0 rounded-full border border-amber-100/20 bg-amber-100/10 px-2.5 py-1 text-xs text-amber-100">
+            已隐藏
+          </span>
+        ) : (
+          <span className="shrink-0 rounded-full border border-emerald-100/15 bg-emerald-100/10 px-2.5 py-1 text-xs text-emerald-100">
+            显示中
+          </span>
+        )}
+      </div>
 
       <p className="mt-3 text-xs text-stone-500">
         {message.author_display_name ?? "匿名"} ·{" "}
         {message.author_role ?? "unknown"} · {formatDateTime(message.created_at)}
       </p>
+
+      {message.hidden_at ? (
+        <p className="mt-1 text-xs text-amber-100/70">
+          隐藏时间：{formatDateTime(message.hidden_at)}
+        </p>
+      ) : null}
+
+      {canManage ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {onToggleHidden ? (
+            <button
+              type="button"
+              onClick={() => onToggleHidden(message)}
+              disabled={isUpdating}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-stone-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUpdating
+                ? "处理中……"
+                : message.is_hidden
+                  ? "恢复显示"
+                  : "隐藏"}
+            </button>
+          ) : null}
+
+          {onDeleteMessage ? (
+            <button
+              type="button"
+              onClick={() => onDeleteMessage(message)}
+              disabled={isUpdating}
+              className="rounded-full border border-red-200/20 bg-red-400/10 px-3 py-1.5 text-xs text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              删除
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2974,14 +3097,22 @@ function ActivityPanel({
   treeMessageWriteMode,
   treeMessageSettingStatus,
   isSavingTreeMessageSetting,
+  messageManageStatus,
+  updatingMessageId,
   onTreeMessageWriteModeChange,
+  onToggleMessageHidden,
+  onDeleteMessage,
 }: {
   messages: MessageRow[];
   energyTransactions: EnergyTransactionRow[];
   treeMessageWriteMode: TreeWriteMode;
   treeMessageSettingStatus: string;
   isSavingTreeMessageSetting: boolean;
+  messageManageStatus: string;
+  updatingMessageId: string | null;
   onTreeMessageWriteModeChange: (nextMode: TreeWriteMode) => void;
+  onToggleMessageHidden: (message: MessageRow) => void;
+  onDeleteMessage: (message: MessageRow) => void;
 }) {
   return (
     <section className="grid gap-6 lg:grid-cols-2">
@@ -3040,16 +3171,34 @@ function ActivityPanel({
         </div>
 
         <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-        <h2 className="text-xl font-semibold">最近留言</h2>
+        <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold">最近留言</h2>
+
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-stone-400">
+                显示最近 {messages.length} 条
+            </span>
+        </div>
+
+        {messageManageStatus ? (
+            <p className="mt-3 rounded-2xl border border-emerald-100/15 bg-emerald-100/10 px-4 py-3 text-sm text-emerald-100">
+                {messageManageStatus}
+            </p>
+        ) : null}
 
         <div className="mt-5 space-y-3">
-          {messages.length === 0 ? (
-            <p className="text-sm text-stone-400">暂无留言。</p>
-          ) : (
-            messages.map((message) => (
-              <MessageActivityCard key={message.id} message={message} />
-            ))
-          )}
+            {messages.length === 0 ? (
+                <p className="text-sm text-stone-400">暂无留言。</p>
+            ) : (
+                messages.map((message) => (
+                    <MessageActivityCard
+                        key={message.id}
+                        message={message}
+                        updatingMessageId={updatingMessageId}
+                        onToggleHidden={onToggleMessageHidden}
+                        onDeleteMessage={onDeleteMessage}
+                    />
+                ))
+            )}
         </div>
       </div>
 
