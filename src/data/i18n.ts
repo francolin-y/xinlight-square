@@ -175,7 +175,7 @@ export const copy = {
       loadingSubtitle: "Following the stone steps",
       title: "Memory Darkroom",
       intro:
-        "This is where we keep the heartwarming evidence unlocked step by step: photos touched by sunlight, intimate moments locked in secret compartments, short clips we replay again and again, and silly bloopers we can’t bear to delete.",
+        "This is where we keep the evidence.",
     },
     tree: {
       loadingTitle: "The message tree is growing",
