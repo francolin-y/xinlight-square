@@ -21,6 +21,24 @@ const treeCopies = {
       "这棵树会慢慢长出更多想说的话。",
       "有些话不需要立刻被看见，只要被好好留下。",
     ],
+    loadingMessages: "正在读取留言……",
+    noRealMessages: "这棵树还没有真实留言。",
+    submitSuccess: "留言已经种下。",
+    submitEmpty: "留言不能为空。",
+    submitFailed: "种下留言失败",
+    readFailed: "读取留言失败",
+    settingsFailed: "读取留言权限失败",
+    permission: {
+      everyone: "当前所有访客都可以留言。",
+      signed_in: "当前需要登录后留言。",
+      heroine_only: "当前只有小欣可以留言。",
+      closed: "留言树暂时关闭留言。",
+    },
+    blocked: {
+      signed_in: "请先登录后再留言。",
+      heroine_only: "目前只有小欣可以留言。",
+      closed: "留言树暂时关闭留言。",
+    },
   },
   en: {
     writeTitle: "Write a message",
@@ -37,6 +55,24 @@ const treeCopies = {
       "This tree will slowly grow more words.",
       "Some words do not need to be seen immediately. They only need to be kept.",
     ],
+    loadingMessages: "Loading messages...",
+    noRealMessages: "This tree has no real messages yet.",
+    submitSuccess: "Message planted.",
+    submitEmpty: "Message cannot be empty.",
+    submitFailed: "Failed to plant message",
+    readFailed: "Failed to load messages",
+    settingsFailed: "Failed to load message permission",
+    permission: {
+      everyone: "Everyone can currently leave a message.",
+      signed_in: "You need to sign in before leaving a message.",
+      heroine_only: "Only Xiaoxin can currently leave a message.",
+      closed: "The message tree is currently closed.",
+    },
+    blocked: {
+      signed_in: "Please sign in before leaving a message.",
+      heroine_only: "Only Xiaoxin can currently leave a message.",
+      closed: "The message tree is currently closed.",
+    },
   },
 };
 
@@ -46,6 +82,7 @@ const treeBackgrounds = {
 };
 
 type ProfileRole = "admin" | "heroine" | "fan" | "guest";
+type TreeWriteMode = "everyone" | "signed_in" | "heroine_only" | "closed";
 
 type TreeMessage = {
   id: string;
@@ -85,10 +122,16 @@ export default function TreePage() {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<TreeMessage[]>([]);
   const [role, setRole] = useState<ProfileRole | null>(null);
+  const [writeMode, setWriteMode] = useState<TreeWriteMode>("heroine_only");
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [messageStatus, setMessageStatus] = useState("");
 
-  const canPlantMessage = role === "heroine" || role === "admin";
+  const canPlantMessage =
+    writeMode === "everyone" ||
+    (writeMode === "signed_in" && role !== null) ||
+    (writeMode === "heroine_only" && role === "heroine");
+
+  const permissionHint = page.permission[writeMode];
 
   async function loadCurrentProfile() {
     const {
@@ -123,23 +166,33 @@ export default function TreePage() {
     setRole(data.role as ProfileRole);
   }
 
+  async function loadTreeSettings() {
+    const { data, error } = await supabase.rpc("get_tree_message_settings");
+
+    if (error) {
+      setMessageStatus(`${page.settingsFailed}：${error.message}`);
+      setWriteMode("heroine_only");
+      return;
+    }
+
+    const nextMode = data?.[0]?.write_mode as TreeWriteMode | undefined;
+    setWriteMode(nextMode ?? "heroine_only");
+  }
+
   async function loadMessages() {
     setIsLoadingMessages(true);
 
-    const { data, error } = await supabase
-      .from("messages")
-      .select("id, content, created_at, author_display_name, author_role")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.rpc("get_tree_messages");
 
     if (error) {
-      setMessageStatus(`读取留言失败：${error.message}`);
+      setMessageStatus(`${page.readFailed}：${error.message}`);
       setMessages([]);
       setIsLoadingMessages(false);
       return;
     }
 
     setMessages(
-      data.map((message) => ({
+      (data ?? []).map((message: { id: any; content: any; created_at: any; author_display_name: any; author_role: string | null; }) => ({
         id: message.id,
         text: message.content,
         createdAt: message.created_at,
@@ -153,60 +206,60 @@ export default function TreePage() {
   }
 
   useEffect(() => {
-    loadCurrentProfile();
-    loadMessages();
+    void loadCurrentProfile();
+    void loadTreeSettings();
+    void loadMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function plantMessage() {
     const trimmedDraft = draft.trim();
 
-    if (!trimmedDraft) return;
-
-    const canPlantMessage = role === "heroine" || role === "admin";
+    if (!trimmedDraft) {
+      setMessageStatus(page.submitEmpty);
+      return;
+    }
 
     if (!canPlantMessage) {
-      setMessageStatus("目前只有女主人公和管理猿可以留言。");
+      if (writeMode === "signed_in") {
+        setMessageStatus(page.blocked.signed_in);
+      } else if (writeMode === "heroine_only") {
+        setMessageStatus(page.blocked.heroine_only);
+      } else if (writeMode === "closed") {
+        setMessageStatus(page.blocked.closed);
+      }
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setMessageStatus("需要登录女主人公账号。");
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({
-        user_id: user.id,
-        content: trimmedDraft,
-      })
-      .select("id, content, created_at, author_display_name, author_role")
-      .single();
+    const { data, error } = await supabase.rpc("submit_tree_message", {
+      content_input: trimmedDraft,
+    });
 
     if (error) {
-      setMessageStatus(`种下留言失败：${error.message}`);
+      setMessageStatus(`${page.submitFailed}：${error.message}`);
       return;
     }
 
-    setMessages((current) => [
-      {
-        id: data.id,
-        text: data.content,
-        createdAt: data.created_at,
-        authorName: data.author_display_name,
-        authorRole: data.author_role as ProfileRole | null,
-        fresh: true,
-      },
-      ...current,
-    ]);
+    const plantedMessage = data?.[0];
+
+    if (plantedMessage) {
+      setMessages((current) => [
+        {
+          id: plantedMessage.id,
+          text: plantedMessage.content,
+          createdAt: plantedMessage.created_at,
+          authorName: plantedMessage.author_display_name,
+          authorRole: plantedMessage.author_role as ProfileRole | null,
+          fresh: true,
+        },
+        ...current,
+      ]);
+    } else {
+      await loadMessages();
+    }
 
     setDraft("");
-    setMessageStatus("");
+    setMessageStatus(page.submitSuccess);
   }
 
   return (
@@ -245,7 +298,7 @@ export default function TreePage() {
             <h2 className="text-2xl font-semibold">{page.writeTitle}</h2>
 
             <p className="mt-3 rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-emerald-100">
-              {page.treeStatus}: {page.treeStatusValue}
+              {page.treeStatus}: {permissionHint}
             </p>
 
             <textarea
@@ -261,7 +314,7 @@ export default function TreePage() {
               disabled={!draft.trim() || !canPlantMessage}
               className={[
                 "mt-4 rounded-full px-5 py-3 text-sm font-medium transition disabled:cursor-not-allowed",
-                draft.trim()
+                draft.trim() && canPlantMessage
                   ? "bg-white text-slate-950 hover:bg-emerald-100"
                   : "bg-white/10 text-white/40",
               ].join(" ")}
@@ -273,10 +326,8 @@ export default function TreePage() {
               <p className="mt-3 text-sm text-emerald-100/80">{messageStatus}</p>
             ) : !draft.trim() ? (
               <p className="mt-3 text-sm text-slate-400">{page.emptyHint}</p>
-            ) : role !== "heroine" ? (
-              <p className="mt-3 text-sm text-emerald-100/80">
-                目前只有女主人公和管理猿可以留言。
-              </p>
+            ) : !canPlantMessage ? (
+              <p className="mt-3 text-sm text-emerald-100/80">{permissionHint}</p>
             ) : null}
           </div>
         </section>
@@ -307,11 +358,11 @@ export default function TreePage() {
               <div className="space-y-3">
                 {isLoadingMessages ? (
                   <div className="rounded-3xl border border-white/10 bg-slate-950/45 px-5 py-4 text-slate-300">
-                    正在读取留言……
+                    {page.loadingMessages}
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="rounded-3xl border border-white/10 bg-slate-950/45 px-5 py-4 text-slate-300">
-                    这棵树还没有真实留言。
+                    {page.noRealMessages}
                   </div>
                 ) : (
                   messages.map((message, index) => (
