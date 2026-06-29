@@ -171,8 +171,8 @@ export const copy = {
         "Use starlight value to redeem everything, literally.",
     },
     studio: {
-      loadingTitle: "Opening the underground darkroom",
-      loadingSubtitle: "Follow the stone steps to find the sealed memories",
+      loadingTitle: "Opening the darkroom",
+      loadingSubtitle: "Following the stone steps",
       title: "Memory Darkroom",
       intro:
         "This is where we keep the heartwarming evidence unlocked step by step: photos touched by sunlight, intimate moments locked in secret compartments, short clips we replay again and again, and silly bloopers we can’t bear to delete.",
