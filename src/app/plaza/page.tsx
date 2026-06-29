@@ -101,6 +101,17 @@ const checkinCopies = {
   },
 };
 
+const plazaActionCopies = {
+  cn: {
+    redeemOnlyHeroine: "仅小欣可兑换",
+    solveOnlyHeroine: "仅小欣可解谜",
+  },
+  en: {
+    redeemOnlyHeroine: "Only Heroine can redeem",
+    solveOnlyHeroine: "Only Heroine can solve",
+  },
+};
+
 function getCurrentMonthCalendar(checkinDates: string[]): CalendarCell[] {
   const now = new Date();
   const year = now.getFullYear();
@@ -165,6 +176,7 @@ export default function HomePage() {
   const { lang, t } = useLanguage();
   const supabase = createClient();
   const checkinCopy = checkinCopies[lang];
+  const actionCopy = plazaActionCopies[lang];
 
   const [daysTogether, setDaysTogether] = useState(getDaysTogether());
   const [role, setRole] = useState<ProfileRole | null>(null);
@@ -178,6 +190,15 @@ export default function HomePage() {
   const todayKey = getLocalDateKey(new Date());
   const hasCheckedInToday = checkinDates.includes(todayKey);
   const canCheckIn = role === "heroine";
+  const canUseHeroineActions = role === "heroine";
+
+  const marketActionLabel = canUseHeroineActions
+    ? t.home.goMarket
+    : actionCopy.redeemOnlyHeroine;
+
+  const puzzleActionLabel = canUseHeroineActions
+    ? t.home.startPuzzle
+    : actionCopy.solveOnlyHeroine;
 
   const monthCalendar = getCurrentMonthCalendar(checkinDates);
   const monthLabel = getCurrentMonthLabel(lang);
@@ -362,12 +383,12 @@ export default function HomePage() {
             </div>
 
             <div className="flex flex-col justify-between rounded-3xl border border-white/15 bg-slate-950/55 p-5 shadow-lg backdrop-blur">
-              <p className="text-sm text-slate-100">{t.home.goMarket}</p>
+              <p className="text-sm text-slate-100">{marketActionLabel}</p>
               <Link
                 href="/market"
                 className="mt-5 rounded-full bg-white px-5 py-3 text-center text-sm font-medium text-slate-950 transition hover:bg-sky-100"
               >
-                {t.home.goMarket}
+                {marketActionLabel}
               </Link>
             </div>
           </div>
@@ -417,7 +438,7 @@ export default function HomePage() {
                   href="/magic"
                   className="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-white"
                 >
-                  {t.home.startPuzzle}
+                  {puzzleActionLabel}
                 </Link>
               </div>
             </div>
