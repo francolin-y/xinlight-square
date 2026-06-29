@@ -333,6 +333,7 @@ export default function MarketPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const canUploadGift = role === "heroine";
+  const canRedeemGift = role === "heroine";
 
   async function getCurrentAuthenticatedUserId() {
     const {
@@ -592,6 +593,11 @@ export default function MarketPage() {
   }
 
   async function handleRedeemGift(giftId: string) {
+    if (!canRedeemGift) {
+      setRedemptionStatus(page.redeemOnlyHeroine);
+      return;
+    }
+
     setRedeemingGiftId(giftId);
     setRedemptionStatus("");
 
@@ -1006,16 +1012,20 @@ export default function MarketPage() {
                           type="button"
                           onClick={() => handleRedeemGift(gift.id)}
                           disabled={
-                            isRedeemed || redeemingGiftId === gift.id
+                            !canRedeemGift || isRedeemed || redeemingGiftId === gift.id
                           }
                           className={[
                             "mt-6 w-full rounded-full px-5 py-3 text-sm font-medium transition disabled:cursor-not-allowed",
-                            isRedeemed
+                            isRedeemed || !canRedeemGift
                               ? "bg-white/10 text-white/40"
                               : "bg-white text-slate-950 hover:bg-amber-100",
                           ].join(" ")}
                         >
-                          {isRedeemed ? page.redeemed : page.redeem}
+                          {isRedeemed
+                            ? page.redeemed
+                            : canRedeemGift
+                              ? page.redeem
+                              : page.redeemOnlyHeroine}
                         </button>
                       )}
                     </div>
