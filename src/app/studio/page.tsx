@@ -320,17 +320,11 @@ export default function StudioPage() {
       error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError) {
-      setStudioLoadStatus("error");
-      setStudioLoadMessage(userError.message);
-      setStudioDisplayItems([]);
-      return;
-    }
-
-    if (!user) {
-      setStudioLoadStatus("signedOut");
-      setStudioDisplayItems([]);
-      return;
+    if (userError || !user) {
+      // Public-read mode: anonymous visitors can still view Studio items.
+      // The RPC controls which items expose storage_path.
+    } else {
+      // Authenticated users use the same public-read RPC.
     }
 
     const { data, error } = await supabase.rpc("get_studio_items");
@@ -412,7 +406,6 @@ export default function StudioPage() {
       {studioLoadStatus !== "allowed" ? (
         <section className="mb-6 rounded-[2rem] border border-white/10 bg-black/35 p-5 text-sm text-stone-200 backdrop-blur-md">
           {studioLoadStatus === "loading" ? page.loadingArchive : null}
-          {studioLoadStatus === "signedOut" ? page.signedOutArchive : null}
           {studioLoadStatus === "forbidden" ? page.forbiddenArchive : null}
           {studioLoadStatus === "error"
             ? `${page.loadErrorArchive} ${studioLoadMessage}`
