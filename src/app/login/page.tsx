@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useLanguage } from "@/components/LanguageProvider";
 
 type ProfileRole = "admin" | "heroine" | "fan" | "guest";
 
@@ -13,12 +14,57 @@ type Profile = {
   subscription_started_at: string | null;
 };
 
-function getRoleLabel(role: ProfileRole) {
-  if (role === "admin") return "站长";
-  if (role === "heroine") return "女主人公";
-  if (role === "fan") return "粉丝";
-  return "访客";
-}
+const loginCopies = {
+  cn: {
+    checking: "正在检查登录状态……",
+    signedOut: "当前未登录。",
+    readUserError: "读取登录状态失败",
+    profileReadError: "已登录，但读取身份失败",
+    profileNotFound: "Profile not found",
+    loggedIn: "已登录",
+    fillEmailPassword: "请填写邮箱和密码。",
+    signingIn: "正在登录……",
+    loginFailed: "登录失败",
+    loginSuccessNoProfile: "登录成功，但暂时无法读取身份。请刷新页面后重试。",
+    guestEntering: "正在以访客身份进入……",
+    guestFailed: "进入访客模式失败",
+    guestRedirect: "正在进入天空广场……",
+    title: "进入Stella星球",
+    emailLabel: "邮箱",
+    emailPlaceholder: "you@example.com",
+    passwordLabel: "密码",
+    passwordPlaceholder: "请输入密码",
+    loginButton: "登录",
+    loggingInButton: "正在登录……",
+    guestButton: "以访客身份浏览",
+    guestEnteringButton: "正在进入……",
+  },
+  en: {
+    checking: "Checking login status...",
+    signedOut: "You are not signed in.",
+    readUserError: "Failed to read login status",
+    profileReadError: "Signed in, but failed to read profile",
+    profileNotFound: "Profile not found",
+    loggedIn: "Signed in",
+    fillEmailPassword: "Please enter both email and password.",
+    signingIn: "Signing in...",
+    loginFailed: "Sign-in failed",
+    loginSuccessNoProfile:
+      "Signed in, but the profile could not be loaded yet. Please refresh and try again.",
+    guestEntering: "Entering as a guest...",
+    guestFailed: "Failed to enter guest mode",
+    guestRedirect: "Entering Stella Planet...",
+    title: "Enter Stella Planet",
+    emailLabel: "Email",
+    emailPlaceholder: "you@example.com",
+    passwordLabel: "Password",
+    passwordPlaceholder: "Enter your password",
+    loginButton: "Log in",
+    loggingInButton: "Signing in...",
+    guestButton: "Browse as guest",
+    guestEnteringButton: "Entering...",
+  },
+};
 
 function getRoleRedirectPath(role: ProfileRole) {
   if (role === "admin") return "/admin";
@@ -29,21 +75,20 @@ function getRoleRedirectPath(role: ProfileRole) {
 export default function LoginPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { lang, setLang } = useLanguage();
+  const page = loginCopies[lang];
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [status, setStatus] = useState("正在检查当前登录状态……");
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+  const [status, setStatus] = useState(page.checking);
   const [isChecking, setIsChecking] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [isEnteringGuest, setIsEnteringGuest] = useState(false);
 
   async function loadCurrentUser() {
     setIsChecking(true);
-    setStatus("正在检查当前登录状态……");
+    setStatus(page.checking);
 
     const {
       data: { user },
@@ -51,17 +96,13 @@ export default function LoginPage() {
     } = await supabase.auth.getUser();
 
     if (userError) {
-      setStatus(`读取登录状态失败：${userError.message}`);
-      setProfile(null);
-      setCurrentEmail(null);
+      setStatus(`${page.readUserError}：${userError.message}`);
       setIsChecking(false);
       return null;
     }
 
     if (!user) {
-      setStatus("当前未登录。");
-      setProfile(null);
-      setCurrentEmail(null);
+      setStatus(page.signedOut);
       setIsChecking(false);
       return null;
     }
@@ -74,21 +115,17 @@ export default function LoginPage() {
 
     if (profileError || !data) {
       setStatus(
-        `已登录，但读取身份失败：${
-          profileError?.message ?? "Profile not found"
+        `${page.profileReadError}：${
+          profileError?.message ?? page.profileNotFound
         }`,
       );
-      setProfile(null);
-      setCurrentEmail(user.email ?? null);
       setIsChecking(false);
       return null;
     }
 
     const nextProfile = data as Profile;
 
-    setProfile(nextProfile);
-    setCurrentEmail(user.email ?? null);
-    setStatus(`已登录：${user.email ?? "未知邮箱"}`);
+    setStatus(`${page.loggedIn}：${user.email ?? ""}`);
     setIsChecking(false);
 
     return nextProfile;
@@ -99,12 +136,12 @@ export default function LoginPage() {
     const trimmedPassword = password.trim();
 
     if (!trimmedEmail || !trimmedPassword) {
-      setStatus("请填写邮箱和密码。");
+      setStatus(page.fillEmailPassword);
       return;
     }
 
     setIsSigningIn(true);
-    setStatus("正在登录……");
+    setStatus(page.signingIn);
 
     const { error } = await supabase.auth.signInWithPassword({
       email: trimmedEmail,
@@ -112,7 +149,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setStatus(`登录失败：${error.message}`);
+      setStatus(`${page.loginFailed}：${error.message}`);
       setIsSigningIn(false);
       return;
     }
@@ -122,184 +159,127 @@ export default function LoginPage() {
     setIsSigningIn(false);
 
     if (!nextProfile) {
-      setStatus("登录成功，但暂时无法读取身份。请刷新页面后重试。");
+      setStatus(page.loginSuccessNoProfile);
       return;
     }
 
-    setStatus(`登录成功，正在进入${getRoleLabel(nextProfile.role)}入口……`);
     router.push(getRoleRedirectPath(nextProfile.role));
-  }
-
-  async function handleSignOut() {
-    setIsSigningOut(true);
-    setStatus("正在退出登录……");
-
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      setStatus(`退出失败：${error.message}`);
-      setIsSigningOut(false);
-      return;
-    }
-
-    setProfile(null);
-    setCurrentEmail(null);
-    setPassword("");
-    setStatus("已退出登录。");
-    setIsSigningOut(false);
-  }
-
-  function handleEnterCurrentRolePage() {
-    if (!profile) return;
-
-    router.push(getRoleRedirectPath(profile.role));
   }
 
   async function handleVisitAsGuest() {
     setIsEnteringGuest(true);
-    setStatus("正在以访客身份进入……");
+    setStatus(page.guestEntering);
 
     const {
-        data: { user },
+      data: { user },
     } = await supabase.auth.getUser();
 
     if (user) {
-        const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
 
-        if (error) {
-        setStatus(`进入访客模式失败：${error.message}`);
+      if (error) {
+        setStatus(`${page.guestFailed}：${error.message}`);
         setIsEnteringGuest(false);
         return;
-        }
+      }
     }
 
-    setProfile(null);
-    setCurrentEmail(null);
     setPassword("");
-    setStatus("正在进入天空广场……");
-    setIsEnteringGuest(false);
-    router.push("/");
+    setStatus(page.guestRedirect);
+    router.push("/plaza");
   }
 
   useEffect(() => {
     void loadCurrentUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lang]);
 
   return (
-    <main className="min-h-screen bg-slate-950 px-5 py-20 text-white">
-      <section className="mx-auto max-w-xl rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md">
-        <p className="text-sm uppercase tracking-[0.28em] text-sky-200">
-          Account Gate
-        </p>
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-5 py-8 text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[url('/backgrounds/login/login-background-mobile.png')] bg-cover bg-center md:bg-[url('/backgrounds/login/login-background-desktop.png')]" />
+      <div className="pointer-events-none absolute inset-0 bg-slate-950/10" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/10 via-transparent to-slate-950/20" />
 
-        <h1 className="mt-4 text-3xl font-semibold">进入星光系统</h1>
+      <div className="relative z-10 mx-auto mb-4 flex max-w-xs justify-end">
+        <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 p-1 backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setLang("cn")}
+            className={[
+              "rounded-full px-2 py-0.5 text-[10px] transition",
+              lang === "cn" ? "bg-white text-slate-950" : "text-white/70",
+            ].join(" ")}
+          >
+            CN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLang("en")}
+            className={[
+              "rounded-full px-2.5 py-1 text-xs transition",
+              lang === "en" ? "bg-white text-slate-950" : "text-white/70",
+            ].join(" ")}
+          >
+            EN
+          </button>
+        </div>
+      </div>
 
-        <p className="mt-3 text-sm leading-6 text-slate-300">
-          登录后会根据当前身份进入对应入口。站长会进入后台，女主人公会回到星光广场。也可以以访客身份进入，浏览已经公开的星光内容。
-        </p>
+      <section className="relative z-10 mx-auto max-w-xs rounded-[1.25rem] border border-white/5 bg-white/[0.04] p-4 shadow-lg shadow-black/10 backdrop-blur-[2px] md:p-4">
+        <h1 className="text-center text-2xl font-semibold tracking-tight text-white">
+          {page.title}
+        </h1>
 
-        <div className="mt-8 grid gap-4">
-          <label className="grid gap-2">
-            <span className="text-sm text-slate-300">邮箱</span>
+        <div className="mt-4 grid gap-2.5">
+          <label className="grid gap-1.5">
+            <span className="text-[11px] text-white/65">{page.emailLabel}</span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
+              placeholder={page.emailPlaceholder}
               autoComplete="email"
-              disabled={isSigningIn || isSigningOut || isEnteringGuest}
-              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSigningIn || isEnteringGuest}
+              className="rounded-xl border border-white/10 bg-slate-950/20 px-3 py-2 text-xs text-white outline-none placeholder:text-white/30 focus:border-sky-200/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-slate-300">密码</span>
+          <label className="grid gap-1.5">
+            <span className="text-xs text-white/75">{page.passwordLabel}</span>
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
-              placeholder="请输入密码"
+              placeholder={page.passwordPlaceholder}
               autoComplete="current-password"
-              disabled={isSigningIn || isSigningOut || isEnteringGuest}
-              className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSigningIn || isEnteringGuest}
+              className="rounded-xl border border-white/10 bg-slate-950/20 px-3 py-2 text-xs text-white outline-none placeholder:text-white/30 focus:border-sky-200/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-            <button
-                type="button"
-                onClick={handleSignIn}
-                disabled={isSigningIn || isSigningOut || isEnteringGuest}
-                className="rounded-full bg-sky-200 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-                {isSigningIn ? "正在登录……" : "登录"}
-            </button>
+        <div className="mt-5 grid gap-2.5">
+          <button
+            type="button"
+            onClick={handleSignIn}
+            disabled={isSigningIn || isEnteringGuest}
+            className="rounded-full bg-white px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSigningIn ? page.loggingInButton : page.loginButton}
+          </button>
 
-            <button
-                type="button"
-                onClick={() => void handleVisitAsGuest()}
-                disabled={isSigningIn || isSigningOut || isEnteringGuest}
-                className="rounded-full border border-sky-200/30 bg-sky-100/10 px-5 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-100/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-                {isEnteringGuest ? "正在进入……" : "Visit as guest"}
-            </button>
-
-            {profile ? (
-                <button
-                type="button"
-                onClick={handleEnterCurrentRolePage}
-                disabled={isSigningIn || isSigningOut || isEnteringGuest}
-                className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                {profile.role === "admin" ? "进入站长后台" : "进入星光广场"}
-                </button>
-            ) : null}
-
-            {profile ? (
-                <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={isSigningIn || isSigningOut || isEnteringGuest}
-                className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                {isSigningOut ? "正在退出……" : "退出登录"}
-                </button>
-            ) : null}
+          <button
+            type="button"
+            onClick={() => void handleVisitAsGuest()}
+            disabled={isSigningIn || isEnteringGuest}
+            className="rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isEnteringGuest ? page.guestEnteringButton : page.guestButton}
+          </button>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-          <p className="text-sm text-slate-400">状态</p>
-          <p className="mt-2 leading-7 text-slate-100">
-            {isChecking ? "正在检查当前登录状态……" : status}
-          </p>
-        </div>
-
-        {profile ? (
-          <div className="mt-4 rounded-2xl border border-emerald-200/20 bg-emerald-200/10 p-4">
-            <p className="text-sm text-emerald-100">当前身份</p>
-
-            <div className="mt-3 space-y-2 text-sm text-slate-100">
-              <p>
-                <span className="text-slate-400">邮箱：</span>
-                {currentEmail ?? "未知"}
-              </p>
-              <p>
-                <span className="text-slate-400">昵称：</span>
-                {profile.display_name ?? "未设置"}
-              </p>
-              <p>
-                <span className="text-slate-400">身份：</span>
-                {getRoleLabel(profile.role)}{" "}
-                <span className="text-slate-500">({profile.role})</span>
-              </p>
-              <p>
-                <span className="text-slate-400">订阅开始：</span>
-                {profile.subscription_started_at ?? "未设置"}
-              </p>
-            </div>
-          </div>
-        ) : null}
+        <p className="mt-4 min-h-5 text-center text-xs leading-5 text-white/65">
+          {isChecking ? page.checking : status}
+        </p>
       </section>
     </main>
   );
