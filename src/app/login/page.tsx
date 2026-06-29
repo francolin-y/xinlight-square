@@ -23,7 +23,7 @@ function getRoleLabel(role: ProfileRole) {
 function getRoleRedirectPath(role: ProfileRole) {
   if (role === "admin") return "/admin";
 
-  return "/";
+  return "/plaza";
 }
 
 export default function LoginPage() {
@@ -39,6 +39,7 @@ export default function LoginPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isEnteringGuest, setIsEnteringGuest] = useState(false);
 
   async function loadCurrentUser() {
     setIsChecking(true);
@@ -154,6 +155,32 @@ export default function LoginPage() {
     router.push(getRoleRedirectPath(profile.role));
   }
 
+  async function handleVisitAsGuest() {
+    setIsEnteringGuest(true);
+    setStatus("正在以访客身份进入……");
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+        const { error } = await supabase.auth.signOut();
+
+        if (error) {
+        setStatus(`进入访客模式失败：${error.message}`);
+        setIsEnteringGuest(false);
+        return;
+        }
+    }
+
+    setProfile(null);
+    setCurrentEmail(null);
+    setPassword("");
+    setStatus("正在进入天空广场……");
+    setIsEnteringGuest(false);
+    router.push("/");
+  }
+
   useEffect(() => {
     void loadCurrentUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,7 +196,7 @@ export default function LoginPage() {
         <h1 className="mt-4 text-3xl font-semibold">进入星光系统</h1>
 
         <p className="mt-3 text-sm leading-6 text-slate-300">
-          登录后会根据当前身份进入对应入口。站长会进入后台，女主人公会回到天空广场。
+          登录后会根据当前身份进入对应入口。站长会进入后台，女主人公会回到星光广场。也可以以访客身份进入，浏览已经公开的星光内容。
         </p>
 
         <div className="mt-8 grid gap-4">
@@ -180,7 +207,7 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
               autoComplete="email"
-              disabled={isSigningIn || isSigningOut}
+              disabled={isSigningIn || isSigningOut || isEnteringGuest}
               className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
@@ -193,40 +220,52 @@ export default function LoginPage() {
               type="password"
               placeholder="请输入密码"
               autoComplete="current-password"
-              disabled={isSigningIn || isSigningOut}
+              disabled={isSigningIn || isSigningOut || isEnteringGuest}
               className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-200/50 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={handleSignIn}
-            disabled={isSigningIn || isSigningOut}
-            className="rounded-full bg-sky-200 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSigningIn ? "正在登录……" : "登录"}
-          </button>
-
-          {profile ? (
             <button
-              type="button"
-              onClick={handleEnterCurrentRolePage}
-              className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-100"
+                type="button"
+                onClick={handleSignIn}
+                disabled={isSigningIn || isSigningOut || isEnteringGuest}
+                className="rounded-full bg-sky-200 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {profile.role === "admin" ? "进入站长后台" : "进入天空广场"}
+                {isSigningIn ? "正在登录……" : "登录"}
             </button>
-          ) : null}
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={isSigningIn || isSigningOut}
-            className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSigningOut ? "正在退出……" : "退出登录"}
-          </button>
+            <button
+                type="button"
+                onClick={() => void handleVisitAsGuest()}
+                disabled={isSigningIn || isSigningOut || isEnteringGuest}
+                className="rounded-full border border-sky-200/30 bg-sky-100/10 px-5 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-100/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+                {isEnteringGuest ? "正在进入……" : "Visit as guest"}
+            </button>
+
+            {profile ? (
+                <button
+                type="button"
+                onClick={handleEnterCurrentRolePage}
+                disabled={isSigningIn || isSigningOut || isEnteringGuest}
+                className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                {profile.role === "admin" ? "进入站长后台" : "进入星光广场"}
+                </button>
+            ) : null}
+
+            {profile ? (
+                <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={isSigningIn || isSigningOut || isEnteringGuest}
+                className="rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                {isSigningOut ? "正在退出……" : "退出登录"}
+                </button>
+            ) : null}
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
