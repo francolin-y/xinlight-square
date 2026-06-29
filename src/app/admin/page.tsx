@@ -76,6 +76,8 @@ type MagicPuzzleRow = {
   created_at: string;
 };
 
+type TreeWriteMode = "everyone" | "signed_in" | "heroine_only" | "closed";
+
 type MessageRow = {
   id: string;
   content: string;
@@ -92,6 +94,33 @@ type EnergyTransactionRow = {
   description: string | null;
   created_at: string;
 };
+
+const treeWriteModeOptions: {
+  value: TreeWriteMode;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "everyone",
+    label: "所有人可留言",
+    description: "未登录访客、登录用户、小欣和站长都可以留言。",
+  },
+  {
+    value: "signed_in",
+    label: "登录后可留言",
+    description: "只有登录用户可以留言，未登录访客只能浏览。",
+  },
+  {
+    value: "heroine_only",
+    label: "仅小欣可留言",
+    description: "只有小欣可以留言，其他人只能浏览。",
+  },
+  {
+    value: "closed",
+    label: "关闭留言",
+    description: "所有人都不能新增留言，只保留公开浏览。",
+  },
+];
 
 function formatDateTime(value: string | null) {
   if (!value) return "未设置";
@@ -267,6 +296,11 @@ export default function AdminPage() {
   const [reviewingGiftId, setReviewingGiftId] = useState<string | null>(null);
   const [reviewStatus, setReviewStatus] = useState("");
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [treeMessageWriteMode, setTreeMessageWriteMode] =
+    useState<TreeWriteMode>("heroine_only");
+  const [treeMessageSettingStatus, setTreeMessageSettingStatus] = useState("");
+  const [isSavingTreeMessageSetting, setIsSavingTreeMessageSetting] =
+    useState(false);
   const [energyTransactions, setEnergyTransactions] = useState<
     EnergyTransactionRow[]
   >([]);
@@ -430,11 +464,24 @@ export default function AdminPage() {
     await Promise.all([
         loadPendingGifts(),
         loadRecentRedemptions(),
+        loadTreeMessageSettings(),
         loadRecentMessages(),
         loadRecentEnergyTransactions(),
         loadRecentMagicPuzzles(),
         loadRecentStudioItems(),
     ]);
+  }
+
+  async function loadTreeMessageSettings() {
+    const { data, error } = await supabase.rpc("get_tree_message_settings");
+
+    if (error) {
+        setErrorMessage(error.message);
+        return;
+    }
+
+    const nextMode = data?.[0]?.write_mode as TreeWriteMode | undefined;
+    setTreeMessageWriteMode(nextMode ?? "heroine_only");
   }
 
   async function loadPendingGifts() {
@@ -960,6 +1007,39 @@ export default function AdminPage() {
     await loadRecentRedemptions();
   }
 
+  async function loadTreeMessageSettings() {
+    const { data, error } = await supabase.rpc("get_tree_message_settings");
+
+    if (error) {
+        setErrorMessage(error.message);
+        return;
+    }
+
+    const nextMode = data?.[0]?.write_mode as TreeWriteMode | undefined;
+    setTreeMessageWriteMode(nextMode ?? "heroine_only");
+  }
+
+  async function handleTreeMessageWriteModeChange(nextMode: TreeWriteMode) {
+    setIsSavingTreeMessageSetting(true);
+    setTreeMessageSettingStatus("正在保存留言权限……");
+
+    const { data, error } = await supabase.rpc("set_tree_message_write_mode", {
+        write_mode_input: nextMode,
+    });
+
+    if (error) {
+        setTreeMessageSettingStatus(`保存失败：${error.message}`);
+        setIsSavingTreeMessageSetting(false);
+        return;
+    }
+
+    const savedMode = data?.[0]?.write_mode as TreeWriteMode | undefined;
+
+    setTreeMessageWriteMode(savedMode ?? nextMode);
+    setTreeMessageSettingStatus("留言权限已保存。");
+    setIsSavingTreeMessageSetting(false);
+  }
+
   async function loadRecentMessages() {
     const { data, error } = await supabase
       .from("messages")
@@ -1338,6 +1418,12 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
             <ActivityPanel
                 messages={messages}
                 energyTransactions={energyTransactions}
+                treeMessageWriteMode={treeMessageWriteMode}
+                treeMessageSettingStatus={treeMessageSettingStatus}
+                isSavingTreeMessageSetting={isSavingTreeMessageSetting}
+                onTreeMessageWriteModeChange={(nextMode) =>
+                    void handleTreeMessageWriteModeChange(nextMode)
+                }
             />
         ) : null}
       </div>
@@ -2885,13 +2971,75 @@ function MarketManagePanel({
 function ActivityPanel({
   messages,
   energyTransactions,
+  treeMessageWriteMode,
+  treeMessageSettingStatus,
+  isSavingTreeMessageSetting,
+  onTreeMessageWriteModeChange,
 }: {
   messages: MessageRow[];
   energyTransactions: EnergyTransactionRow[];
+  treeMessageWriteMode: TreeWriteMode;
+  treeMessageSettingStatus: string;
+  isSavingTreeMessageSetting: boolean;
+  onTreeMessageWriteModeChange: (nextMode: TreeWriteMode) => void;
 }) {
   return (
     <section className="grid gap-6 lg:grid-cols-2">
-      <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
+        <div className="rounded-[2rem] border border-emerald-100/15 bg-emerald-100/10 p-6 lg:col-span-2">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-emerald-100/70">
+                Tree Permission
+            </p>
+            <h2 className="mt-2 text-xl font-semibold">留言权限配置</h2>
+            <p className="mt-2 text-sm leading-6 text-stone-300">
+                控制前台留言树当前允许谁新增留言。公开浏览不受影响。
+            </p>
+            </div>
+
+            <div className="rounded-full border border-emerald-100/20 bg-black/20 px-4 py-2 text-xs text-emerald-100">
+            当前：{
+                treeWriteModeOptions.find(
+                (option) => option.value === treeMessageWriteMode,
+                )?.label ?? treeMessageWriteMode
+            }
+            </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {treeWriteModeOptions.map((option) => {
+            const isActive = option.value === treeMessageWriteMode;
+
+            return (
+                <button
+                key={option.value}
+                type="button"
+                onClick={() => onTreeMessageWriteModeChange(option.value)}
+                disabled={isSavingTreeMessageSetting || isActive}
+                className={[
+                    "rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-70",
+                    isActive
+                    ? "border-emerald-100/50 bg-emerald-100/20 text-emerald-50"
+                    : "border-white/10 bg-black/20 text-stone-300 hover:border-emerald-100/30 hover:bg-emerald-100/10",
+                ].join(" ")}
+                >
+                <p className="text-sm font-semibold">{option.label}</p>
+                <p className="mt-2 text-xs leading-5 text-stone-400">
+                    {option.description}
+                </p>
+                </button>
+            );
+            })}
+        </div>
+
+        {treeMessageSettingStatus ? (
+            <p className="mt-4 text-sm text-emerald-100/80">
+            {treeMessageSettingStatus}
+            </p>
+        ) : null}
+        </div>
+
+        <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
         <h2 className="text-xl font-semibold">最近留言</h2>
 
         <div className="mt-5 space-y-3">
