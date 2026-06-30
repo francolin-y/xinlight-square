@@ -6,14 +6,33 @@ import { createClient } from "@/lib/supabase/client";
 type ProfileRole = "admin" | "heroine" | "fan" | "guest";
 type AccessStatus = "loading" | "signedOut" | "forbidden" | "allowed";
 
+type GiftStatus = "active" | "hidden" | "pending_admin";
+
 type PendingGift = {
   id: string;
   title_cn: string;
   price: number;
-  status: string;
+  status: GiftStatus;
   image_path: string | null;
   created_at: string;
   created_by: string | null;
+};
+
+type MarketGiftRow = {
+  id: string;
+  slug: string;
+  title_cn: string;
+  title_en: string;
+  description_cn: string;
+  description_en: string;
+  gift_type: GiftType;
+  price: number;
+  icon: string;
+  status: GiftStatus;
+  sort_order: number;
+  image_path: string | null;
+  created_at: string;
+  submitted_at: string;
 };
 
 type RedemptionRow = {
@@ -253,6 +272,18 @@ function getStudioStatusLabel(status: StudioItemStatus) {
   return status === "active" ? "开放中" : "已隐藏";
 }
 
+function getGiftTypeLabel(type: GiftType) {
+  if (type === "physical") return "实体礼物";
+  if (type === "date_plan") return "约会计划";
+  return "虚拟礼物";
+}
+
+function getGiftStatusLabel(status: GiftStatus) {
+  if (status === "active") return "已上架";
+  if (status === "hidden") return "已隐藏";
+  return "待审核";
+}
+
 const toneTextClasses: Record<AdminTone, string> = {
   amber: "text-amber-100",
   violet: "text-violet-100",
@@ -312,6 +343,7 @@ export default function AdminPage() {
     useState<StudioStatusFilter>("all");
 
   const [pendingGifts, setPendingGifts] = useState<PendingGift[]>([]);
+  const [marketGifts, setMarketGifts] = useState<MarketGiftRow[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionRow[]>([]);
   
   const [arrivalInputs, setArrivalInputs] = useState<Record<string, string>>({});
@@ -356,6 +388,25 @@ export default function AdminPage() {
   const [newGiftImageFile, setNewGiftImageFile] = useState<File | null>(null);
   const [isPublishingGift, setIsPublishingGift] = useState(false);
   const [publishGiftStatus, setPublishGiftStatus] = useState("");
+
+  const [editingMarketGiftId, setEditingMarketGiftId] = useState<string | null>(
+    null,
+  );
+  const [editGiftSlug, setEditGiftSlug] = useState("");
+  const [editGiftTitle, setEditGiftTitle] = useState("");
+  const [editGiftDescription, setEditGiftDescription] = useState("");
+  const [editGiftPrice, setEditGiftPrice] = useState("1");
+  const [editGiftIcon, setEditGiftIcon] = useState("◆");
+  const [editGiftType, setEditGiftType] = useState<GiftType>("virtual");
+  const [editGiftStatus, setEditGiftStatus] = useState<GiftStatus>("active");
+  const [editGiftSortOrder, setEditGiftSortOrder] = useState("0");
+  const [savingMarketGiftId, setSavingMarketGiftId] = useState<string | null>(
+    null,
+  );
+  const [deletingMarketGiftId, setDeletingMarketGiftId] = useState<string | null>(
+    null,
+  );
+  const [marketGiftManageStatus, setMarketGiftManageStatus] = useState("");
   
   const [magicSlug, setMagicSlug] = useState("");
   const [magicTitle, setMagicTitle] = useState("");
@@ -529,6 +580,7 @@ export default function AdminPage() {
 
     await Promise.all([
         loadPendingGifts(),
+        loadMarketGifts(),
         loadRecentRedemptions(),
         loadTreeMessageSettings(),
         loadRecentMessages(),
@@ -537,6 +589,39 @@ export default function AdminPage() {
         loadRecentStudioItems(),
         loadHeroineProfile(),
     ]);
+  }
+
+  async function loadMarketGifts() {
+    const { data, error } = await supabase
+        .from("gifts")
+        .select(
+        [
+            "id",
+            "slug",
+            "title_cn",
+            "title_en",
+            "description_cn",
+            "description_en",
+            "gift_type",
+            "price",
+            "icon",
+            "status",
+            "sort_order",
+            "image_path",
+            "created_at",
+            "submitted_at",
+        ].join(", "),
+        )
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+    if (error) {
+        setErrorMessage(error.message);
+        return;
+    }
+
+    setMarketGifts((data ?? []) as unknown as MarketGiftRow[]);
   }
 
   async function loadPendingGifts() {
@@ -600,6 +685,7 @@ export default function AdminPage() {
 
     await Promise.all([
         loadPendingGifts(),
+        loadMarketGifts(),
         loadRecentRedemptions(),
         loadRecentEnergyTransactions(),
     ]);
@@ -666,6 +752,7 @@ export default function AdminPage() {
 
       await Promise.all([
         loadPendingGifts(),
+        loadMarketGifts(),
         loadRecentRedemptions(),
         loadRecentEnergyTransactions(),
       ]);
@@ -678,7 +765,151 @@ export default function AdminPage() {
     } finally {
       setIsPublishingGift(false);
     }
-  }
+    }
+
+    function startEditMarketGift(gift: MarketGiftRow) {
+        setEditingMarketGiftId(gift.id);
+        setEditGiftSlug(gift.slug);
+        setEditGiftTitle(gift.title_cn);
+        setEditGiftDescription(gift.description_cn);
+        setEditGiftPrice(String(gift.price));
+        setEditGiftIcon(gift.icon);
+        setEditGiftType(gift.gift_type);
+        setEditGiftStatus(gift.status);
+        setEditGiftSortOrder(String(gift.sort_order ?? 0));
+        setMarketGiftManageStatus("");
+    }
+
+    function cancelEditMarketGift() {
+        setEditingMarketGiftId(null);
+        setMarketGiftManageStatus("");
+    }
+
+    async function handleUpdateMarketGift() {
+        if (!editingMarketGiftId) return;
+
+        const slug = editGiftSlug.trim();
+        const title = editGiftTitle.trim();
+        const description = editGiftDescription.trim();
+        const parsedPrice = Number(editGiftPrice);
+        const parsedSortOrder = Number(editGiftSortOrder);
+        const icon = editGiftIcon.trim() || "◆";
+
+        if (!slug || slug.length > 80) {
+            setMarketGiftManageStatus("请填写 1-80 个字符的 slug。");
+            return;
+        }
+
+        if (!title || !description) {
+            setMarketGiftManageStatus("请填写礼物标题和描述。");
+            return;
+        }
+
+        if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+            setMarketGiftManageStatus("请填写有效的星光值价格。");
+            return;
+        }
+
+        if (icon.length > 8) {
+            setMarketGiftManageStatus("礼物图标最多 8 个字符。");
+            return;
+        }
+
+        setSavingMarketGiftId(editingMarketGiftId);
+        setMarketGiftManageStatus("正在保存礼物……");
+
+        const { error } = await supabase
+            .from("gifts")
+            .update({
+                slug,
+                title_cn: title,
+                title_en: title,
+                description_cn: description,
+                description_en: description,
+                gift_type: editGiftType,
+                price: Math.round(parsedPrice),
+                icon,
+                status: editGiftStatus,
+                sort_order: Number.isFinite(parsedSortOrder)
+                ? Math.round(parsedSortOrder)
+                : 0,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", editingMarketGiftId);
+
+        if (error) {
+            setMarketGiftManageStatus(`保存失败：${error.message}`);
+            setSavingMarketGiftId(null);
+            return;
+        }
+
+        setMarketGiftManageStatus("礼物已保存。");
+        setSavingMarketGiftId(null);
+        setEditingMarketGiftId(null);
+
+        await Promise.all([loadMarketGifts(), loadPendingGifts()]);
+    }
+
+    async function handleSetMarketGiftStatus(
+        gift: MarketGiftRow,
+        nextStatus: GiftStatus,
+    ) {
+        setSavingMarketGiftId(gift.id);
+        setMarketGiftManageStatus(
+            nextStatus === "hidden" ? "正在隐藏礼物……" : "正在恢复礼物……",
+        );
+
+        const { error } = await supabase
+        .from("gifts")
+        .update({
+            status: nextStatus,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", gift.id);
+
+        if (error) {
+            setMarketGiftManageStatus(`状态更新失败：${error.message}`);
+            setSavingMarketGiftId(null);
+            return;
+        }
+
+        setMarketGiftManageStatus(
+            nextStatus === "hidden" ? "礼物已隐藏。" : "礼物已恢复上架。",
+        );
+        setSavingMarketGiftId(null);
+
+        await Promise.all([loadMarketGifts(), loadPendingGifts()]);
+    }
+
+    async function handleDeleteMarketGift(gift: MarketGiftRow) {
+        const confirmed = window.confirm(
+            `确认永久删除「${gift.title_cn}」吗？如果它已有兑换记录，数据库可能会拒绝删除。正式礼物建议优先隐藏。`,
+        );
+
+        if (!confirmed) return;
+
+        setDeletingMarketGiftId(gift.id);
+        setMarketGiftManageStatus("正在删除礼物……");
+
+        const { error } = await supabase
+            .from("gifts")
+            .delete()
+            .eq("id", gift.id);
+
+        if (error) {
+            setMarketGiftManageStatus(
+                `删除失败：${error.message}。如果已有兑换记录，请改用隐藏。`,
+          );
+          setDeletingMarketGiftId(null);
+          return;
+        }
+
+        setMarketGiftManageStatus("礼物已删除。");
+        setDeletingMarketGiftId(null);
+        setEditingMarketGiftId(null);
+
+        await Promise.all([loadMarketGifts(), loadPendingGifts()]);
+    }
 
   async function handleCreateMagicPuzzle() {
     const title = magicTitle.trim();
@@ -1674,6 +1905,38 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
                         }))
                     }
                     onSaveArrival={(redemptionId) => void handleSaveArrival(redemptionId)}
+                />
+                <MarketGiftManagePanel
+                    gifts={marketGifts}
+                    manageStatus={marketGiftManageStatus}
+                    editingGiftId={editingMarketGiftId}
+                    savingGiftId={savingMarketGiftId}
+                    deletingGiftId={deletingMarketGiftId}
+                    editState={{
+                        slug: editGiftSlug,
+                        title: editGiftTitle,
+                        description: editGiftDescription,
+                        price: editGiftPrice,
+                        icon: editGiftIcon,
+                        giftType: editGiftType,
+                        status: editGiftStatus,
+                        sortOrder: editGiftSortOrder,
+                        setSlug: setEditGiftSlug,
+                        setTitle: setEditGiftTitle,
+                        setDescription: setEditGiftDescription,
+                        setPrice: setEditGiftPrice,
+                        setIcon: setEditGiftIcon,
+                        setGiftType: setEditGiftType,
+                        setStatus: setEditGiftStatus,
+                        setSortOrder: setEditGiftSortOrder,
+                    }}
+                    onStartEdit={startEditMarketGift}
+                    onSetStatus={(gift, nextStatus) =>
+                        void handleSetMarketGiftStatus(gift, nextStatus)
+                    }
+                    onDelete={(gift) => void handleDeleteMarketGift(gift)}
+                    onSaveEdit={() => void handleUpdateMarketGift()}
+                    onCancelEdit={cancelEditMarketGift}
                 />
             </AdminSection>
             ) : null}
@@ -3826,6 +4089,351 @@ function MarketManagePanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function MarketGiftEditForm({
+  slug,
+  title,
+  description,
+  price,
+  icon,
+  giftType,
+  status,
+  sortOrder,
+  isSaving,
+  onSlugChange,
+  onTitleChange,
+  onDescriptionChange,
+  onPriceChange,
+  onIconChange,
+  onGiftTypeChange,
+  onStatusChange,
+  onSortOrderChange,
+  onSave,
+  onCancel,
+}: {
+  slug: string;
+  title: string;
+  description: string;
+  price: string;
+  icon: string;
+  giftType: GiftType;
+  status: GiftStatus;
+  sortOrder: string;
+  isSaving: boolean;
+  onSlugChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onPriceChange: (value: string) => void;
+  onIconChange: (value: string) => void;
+  onGiftTypeChange: (value: GiftType) => void;
+  onStatusChange: (value: GiftStatus) => void;
+  onSortOrderChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-4 grid gap-4 rounded-2xl border border-amber-100/15 bg-black/25 p-4 md:grid-cols-2">
+      <FormInput
+        label="Slug"
+        value={slug}
+        onChange={onSlugChange}
+        help="唯一标识，最多 80 个字符。"
+        tone="amber"
+      />
+
+      <FormInput
+        label="礼物标题"
+        value={title}
+        onChange={onTitleChange}
+        tone="amber"
+      />
+
+      <FormInput
+        label="星光值价格"
+        type="number"
+        min="1"
+        value={price}
+        onChange={onPriceChange}
+        tone="amber"
+      />
+
+      <FormInput
+        label="礼物图标"
+        value={icon}
+        onChange={onIconChange}
+        help="最多 8 个字符。"
+        tone="amber"
+      />
+
+      <FormSelect<GiftType>
+        label="礼物类型"
+        value={giftType}
+        onChange={onGiftTypeChange}
+        tone="amber"
+      >
+        <option value="virtual">虚拟礼物</option>
+        <option value="physical">实体礼物</option>
+        <option value="date_plan">约会计划</option>
+      </FormSelect>
+
+      <FormSelect<GiftStatus>
+        label="状态"
+        value={status}
+        onChange={onStatusChange}
+        tone="amber"
+      >
+        <option value="active">上架</option>
+        <option value="hidden">隐藏</option>
+        <option value="pending_admin">待审核</option>
+      </FormSelect>
+
+      <FormInput
+        label="排序值"
+        type="number"
+        value={sortOrder}
+        onChange={onSortOrderChange}
+        tone="amber"
+      />
+
+      <FormTextarea
+        label="礼物描述"
+        value={description}
+        onChange={onDescriptionChange}
+        minHeightClass="min-h-24"
+        tone="amber"
+      />
+
+      <div className="flex flex-wrap gap-3 md:col-span-2">
+        <ActionButton onClick={onSave} disabled={isSaving} tone="amber">
+          {isSaving ? "保存中……" : "保存修改"}
+        </ActionButton>
+
+        <ActionButton onClick={onCancel} tone="stone">
+          取消
+        </ActionButton>
+      </div>
+
+      <p className="text-xs leading-5 text-stone-500 md:col-span-2">
+        当前版本不替换礼物图片。需要换图时，建议下一步单独做图片替换和旧图清理。
+      </p>
+    </div>
+  );
+}
+
+function MarketGiftManagePanel({
+  gifts,
+  manageStatus,
+  editingGiftId,
+  savingGiftId,
+  deletingGiftId,
+  editState,
+  onStartEdit,
+  onSetStatus,
+  onDelete,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  gifts: MarketGiftRow[];
+  manageStatus: string;
+  editingGiftId: string | null;
+  savingGiftId: string | null;
+  deletingGiftId: string | null;
+  editState: {
+    slug: string;
+    title: string;
+    description: string;
+    price: string;
+    icon: string;
+    giftType: GiftType;
+    status: GiftStatus;
+    sortOrder: string;
+    setSlug: (value: string) => void;
+    setTitle: (value: string) => void;
+    setDescription: (value: string) => void;
+    setPrice: (value: string) => void;
+    setIcon: (value: string) => void;
+    setGiftType: (value: GiftType) => void;
+    setStatus: (value: GiftStatus) => void;
+    setSortOrder: (value: string) => void;
+  };
+  onStartEdit: (gift: MarketGiftRow) => void;
+  onSetStatus: (gift: MarketGiftRow, status: GiftStatus) => void;
+  onDelete: (gift: MarketGiftRow) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
+  return (
+    <section className="mt-6 rounded-[2rem] border border-white/10 bg-black/20 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">已发布礼物管理</h2>
+          <p className="mt-2 text-sm text-stone-400">
+            编辑、隐藏或删除最近 50 个礼物。正式礼物建议优先隐藏。
+          </p>
+        </div>
+
+        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-stone-400">
+          显示 {gifts.length} 个
+        </span>
+      </div>
+
+      {manageStatus ? (
+        <p className="mt-4 rounded-2xl border border-amber-200/20 bg-amber-100/10 px-4 py-3 text-sm text-amber-100">
+          {manageStatus}
+        </p>
+      ) : null}
+
+      <div className="mt-5 space-y-3">
+        {gifts.length === 0 ? (
+          <p className="text-sm text-stone-400">暂无礼物。</p>
+        ) : (
+          gifts.map((gift) => (
+            <MarketGiftManageCard
+              key={gift.id}
+              gift={gift}
+              isEditing={editingGiftId === gift.id}
+              isSaving={savingGiftId === gift.id}
+              isDeleting={deletingGiftId === gift.id}
+              editState={editState}
+              onStartEdit={onStartEdit}
+              onSetStatus={onSetStatus}
+              onDelete={onDelete}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MarketGiftManageCard({
+  gift,
+  isEditing,
+  isSaving,
+  isDeleting,
+  editState,
+  onStartEdit,
+  onSetStatus,
+  onDelete,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  gift: MarketGiftRow;
+  isEditing: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  editState: {
+    slug: string;
+    title: string;
+    description: string;
+    price: string;
+    icon: string;
+    giftType: GiftType;
+    status: GiftStatus;
+    sortOrder: string;
+    setSlug: (value: string) => void;
+    setTitle: (value: string) => void;
+    setDescription: (value: string) => void;
+    setPrice: (value: string) => void;
+    setIcon: (value: string) => void;
+    setGiftType: (value: GiftType) => void;
+    setStatus: (value: GiftStatus) => void;
+    setSortOrder: (value: string) => void;
+  };
+  onStartEdit: (gift: MarketGiftRow) => void;
+  onSetStatus: (gift: MarketGiftRow, status: GiftStatus) => void;
+  onDelete: (gift: MarketGiftRow) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-stone-100">
+            {gift.icon} {gift.title_cn}
+          </p>
+
+          <p className="mt-1 text-xs text-stone-500">
+            {gift.slug} · {getGiftTypeLabel(gift.gift_type)} · {gift.price} 星光值
+            · 排序 {gift.sort_order} · {formatDateTime(gift.created_at)}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge
+            tone={
+              gift.status === "active"
+                ? "emerald"
+                : gift.status === "pending_admin"
+                  ? "amber"
+                  : "stone"
+            }
+          >
+            {getGiftStatusLabel(gift.status)}
+          </StatusBadge>
+
+          <ActionButton
+            onClick={() => onStartEdit(gift)}
+            tone="stone"
+            compact
+          >
+            编辑
+          </ActionButton>
+
+          <ActionButton
+            onClick={() =>
+              onSetStatus(
+                gift,
+                gift.status === "active" ? "hidden" : "active",
+              )
+            }
+            disabled={isSaving}
+            tone="amber"
+            compact
+          >
+            {gift.status === "active" ? "隐藏" : "恢复"}
+          </ActionButton>
+
+          <ActionButton
+            onClick={() => onDelete(gift)}
+            disabled={isDeleting}
+            tone="red"
+            compact
+          >
+            {isDeleting ? "删除中……" : "删除"}
+          </ActionButton>
+        </div>
+      </div>
+
+      {isEditing ? (
+        <MarketGiftEditForm
+          slug={editState.slug}
+          title={editState.title}
+          description={editState.description}
+          price={editState.price}
+          icon={editState.icon}
+          giftType={editState.giftType}
+          status={editState.status}
+          sortOrder={editState.sortOrder}
+          isSaving={isSaving}
+          onSlugChange={editState.setSlug}
+          onTitleChange={editState.setTitle}
+          onDescriptionChange={editState.setDescription}
+          onPriceChange={editState.setPrice}
+          onIconChange={editState.setIcon}
+          onGiftTypeChange={editState.setGiftType}
+          onStatusChange={editState.setStatus}
+          onSortOrderChange={editState.setSortOrder}
+          onSave={onSaveEdit}
+          onCancel={onCancelEdit}
+        />
+      ) : null}
+    </div>
   );
 }
 
