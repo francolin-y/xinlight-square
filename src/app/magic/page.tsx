@@ -324,6 +324,8 @@ function getMonthLabel(monthValue: string, lang: Lang) {
     const [isUnlockingHint, setIsUnlockingHint] = useState(false);
     const [hintMessage, setHintMessage] = useState("");
 
+    const [showHintOffer, setShowHintOffer] = useState(false);
+
     const selectedPuzzle =
       magicPuzzles.find((puzzle) => puzzle.id === selectedPuzzleId) ?? null;
 
@@ -429,6 +431,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
       setAnswerResult(null);
       setAnswerMessage("");
       setHintMessage("");
+      setShowHintOffer(false);
       setIsUnlockingHint(false);
     }
 
@@ -438,6 +441,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
       setAnswerResult(null);
       setAnswerMessage("");
       setHintMessage("");
+      setShowHintOffer(false);
       setIsUnlockingHint(false);
     }
 
@@ -463,12 +467,17 @@ function getMonthLabel(monthValue: string, lang: Lang) {
       if (result?.is_correct) {
         setAnswerResult("correct");
         setAnswerMessage(result.result_message ?? page.correct);
+        setShowHintOffer(false);
         await loadMagicPuzzles();
         return;
       }
 
       setAnswerResult("wrong");
       setAnswerMessage(result?.result_message ?? page.wrong);
+
+      setShowHintOffer(
+        Boolean(selectedPuzzle.hasHint && !selectedPuzzle.hintIsUnlocked),
+      );
     }
 
     async function unlockHint() {
@@ -514,6 +523,7 @@ function getMonthLabel(monthValue: string, lang: Lang) {
       );
 
       setHintMessage(result?.result_message ?? page.hintOpened);
+      setShowHintOffer(false);
 
       await loadMagicPuzzles();
 
@@ -896,6 +906,37 @@ function getMonthLabel(monthValue: string, lang: Lang) {
                       <p className="mt-2 text-sm leading-6 text-slate-200">
                         {getText(selectedPuzzle.surpriseNote, lang)}
                       </p>
+                    </div>
+                  </div>
+                ) : null}
+                
+                {answerResult === "wrong" && showHintOffer ? (
+                  <div className="mt-4 rounded-2xl border border-violet-200/25 bg-violet-100/10 p-4">
+                    <p className="text-sm font-semibold text-violet-100">
+                      {page.hintLockedTitle}
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      {page.hintLockedIntro}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void unlockHint()}
+                        disabled={isUnlockingHint}
+                        className="rounded-full bg-violet-100 px-5 py-2 text-sm font-medium text-violet-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/45"
+                      >
+                        {isUnlockingHint
+                          ? page.unlockingHint
+                          : page.unlockHintButton}
+                      </button>
+
+                      {hintMessage ? (
+                        <p className="text-sm text-violet-100">
+                          {hintMessage}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
