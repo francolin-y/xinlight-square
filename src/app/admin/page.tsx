@@ -70,6 +70,18 @@ type MagicPuzzleRow = {
   slug: string;
   title_cn: string;
   title_en: string;
+  riddle_cn: string;
+  riddle_en: string;
+  hint_cn: string | null;
+  hint_en: string | null;
+  unlock_note_cn: string | null;
+  unlock_note_en: string | null;
+  surprise_title_cn: string | null;
+  surprise_title_en: string | null;
+  surprise_note_cn: string | null;
+  surprise_note_en: string | null;
+  teaser_cn: string | null;
+  teaser_en: string | null;
   status: MagicPuzzleStatus;
   publish_at: string;
   reward_energy: number;
@@ -95,6 +107,12 @@ type EnergyTransactionRow = {
   source: string;
   description: string | null;
   created_at: string;
+};
+
+type HeroineProfileRow = {
+  id: string;
+  display_name: string | null;
+  role: ProfileRole;
 };
 
 const treeWriteModeOptions: {
@@ -179,6 +197,14 @@ function getRedemptionStatusLabel(status: string) {
 
 function getAmountLabel(amount: number) {
   return amount > 0 ? `+${amount}` : `${amount}`;
+}
+
+function getEnergyTransactionEffectiveAmount(transaction: EnergyTransactionRow) {
+  if (transaction.transaction_type === "spend") {
+    return -Math.abs(transaction.amount);
+  }
+
+  return Math.abs(transaction.amount);
 }
 
 const adminTabs: { id: AdminTab; label: string; description: string }[] = [
@@ -309,6 +335,19 @@ export default function AdminPage() {
     EnergyTransactionRow[]
   >([]);
 
+  const [deletingEnergyTransactionId, setDeletingEnergyTransactionId] =
+    useState<string | null>(null);
+  const [energyTransactionManageStatus, setEnergyTransactionManageStatus] =
+    useState("");
+
+  const [heroineProfile, setHeroineProfile] = useState<HeroineProfileRow | null>(
+    null,
+  );
+  const [energyAdjustmentAmount, setEnergyAdjustmentAmount] = useState("");
+  const [energyAdjustmentReason, setEnergyAdjustmentReason] = useState("");
+  const [isSavingEnergyAdjustment, setIsSavingEnergyAdjustment] = useState(false);
+  const [energyAdjustmentStatus, setEnergyAdjustmentStatus] = useState("");
+
   const [newGiftTitle, setNewGiftTitle] = useState("");
   const [newGiftDescription, setNewGiftDescription] = useState("");
   const [newGiftPrice, setNewGiftPrice] = useState("1");
@@ -337,6 +376,29 @@ export default function AdminPage() {
     [],
   );
   const [magicTeaser, setMagicTeaser] = useState("");
+  
+  const [editingMagicPuzzleId, setEditingMagicPuzzleId] = useState<string | null>(
+    null,
+  ); 
+  const [editMagicSlug, setEditMagicSlug] = useState("");
+  const [editMagicTitle, setEditMagicTitle] = useState("");
+  const [editMagicTeaser, setEditMagicTeaser] = useState("");
+  const [editMagicRiddle, setEditMagicRiddle] = useState("");
+  const [editMagicHint, setEditMagicHint] = useState("");
+  const [editMagicUnlockNote, setEditMagicUnlockNote] = useState("");
+  const [editMagicStatus, setEditMagicStatus] =
+    useState<MagicPuzzleStatus>("active");
+  const [editMagicPublishAt, setEditMagicPublishAt] = useState("");
+  const [editMagicRewardEnergy, setEditMagicRewardEnergy] = useState("3");
+  const [editMagicSurpriseTitle, setEditMagicSurpriseTitle] = useState("");
+  const [editMagicSurpriseNote, setEditMagicSurpriseNote] = useState("");
+  const [savingMagicPuzzleId, setSavingMagicPuzzleId] = useState<string | null>(
+    null,
+  );
+  const [deletingMagicPuzzleId, setDeletingMagicPuzzleId] = useState<string | null>(
+    null,
+  );
+  const [magicManageStatus, setMagicManageStatus] = useState("");
   const [studioTitle, setStudioTitle] = useState("");
   const [studioDescription, setStudioDescription] = useState("");
   const [studioTeaser, setStudioTeaser] = useState("");
@@ -473,6 +535,7 @@ export default function AdminPage() {
         loadRecentEnergyTransactions(),
         loadRecentMagicPuzzles(),
         loadRecentStudioItems(),
+        loadHeroineProfile(),
     ]);
   }
 
@@ -675,6 +738,144 @@ export default function AdminPage() {
     await loadRecentMagicPuzzles();
 
     setIsCreatingMagicPuzzle(false);
+  }
+
+  function startEditMagicPuzzle(puzzle: MagicPuzzleRow) {
+    setEditingMagicPuzzleId(puzzle.id);
+    setEditMagicSlug(puzzle.slug);
+    setEditMagicTitle(puzzle.title_cn);
+    setEditMagicTeaser(puzzle.teaser_cn ?? "");
+    setEditMagicRiddle(puzzle.riddle_cn);
+    setEditMagicHint(puzzle.hint_cn ?? "");
+    setEditMagicUnlockNote(puzzle.unlock_note_cn ?? "");
+    setEditMagicStatus(puzzle.status);
+    setEditMagicPublishAt(toDatetimeLocalInputValue(puzzle.publish_at));
+    setEditMagicRewardEnergy(String(puzzle.reward_energy ?? 3));
+    setEditMagicSurpriseTitle(puzzle.surprise_title_cn ?? "");
+    setEditMagicSurpriseNote(puzzle.surprise_note_cn ?? "");
+    setMagicManageStatus("");
+  }
+
+  function cancelEditMagicPuzzle() {
+    setEditingMagicPuzzleId(null);
+    setMagicManageStatus("");
+  }
+
+  async function handleUpdateMagicPuzzle() {
+    if (!editingMagicPuzzleId) return;
+
+    const slug = editMagicSlug.trim();
+    const title = editMagicTitle.trim();
+    const teaser = editMagicTeaser.trim();
+    const riddle = editMagicRiddle.trim();
+    const hint = editMagicHint.trim();
+    const unlockNote = editMagicUnlockNote.trim();
+    const parsedRewardEnergy = Number(editMagicRewardEnergy);
+
+    if (!slug || !title || !riddle || !editMagicPublishAt) {
+      setMagicManageStatus("请填写 slug、标题、谜题正文和上线时间。");
+      return;
+    }
+
+    setSavingMagicPuzzleId(editingMagicPuzzleId);
+    setMagicManageStatus("正在保存魔法谜题……");
+
+    const { error } = await supabase
+      .from("magic_puzzles")
+      .update({
+        slug,
+        title_cn: title,
+        title_en: title,
+        teaser_cn: teaser || null,
+        teaser_en: teaser || null,
+        riddle_cn: riddle,
+        riddle_en: riddle,
+        hint_cn: hint || null,
+        hint_en: hint || null,
+        unlock_note_cn: unlockNote || null,
+        unlock_note_en: unlockNote || null,
+        surprise_title_cn: editMagicSurpriseTitle.trim() || null,
+        surprise_title_en: editMagicSurpriseTitle.trim() || null,
+        surprise_note_cn: editMagicSurpriseNote.trim() || null,
+        surprise_note_en: editMagicSurpriseNote.trim() || null,
+        status: editMagicStatus,
+        publish_at: new Date(editMagicPublishAt).toISOString(),
+        reward_energy: Number.isFinite(parsedRewardEnergy)
+          ? Math.max(0, Math.round(parsedRewardEnergy))
+          : 3,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editingMagicPuzzleId);
+
+    if (error) {
+      setMagicManageStatus(`保存失败：${error.message}`);
+      setSavingMagicPuzzleId(null);
+      return;
+    }
+
+    setMagicManageStatus("魔法谜题已保存。");
+    setSavingMagicPuzzleId(null);
+    setEditingMagicPuzzleId(null);
+
+    await loadRecentMagicPuzzles();
+  }
+
+  async function handleSetMagicPuzzleStatus(
+    puzzle: MagicPuzzleRow,
+    nextStatus: MagicPuzzleStatus,
+  ) {
+    setSavingMagicPuzzleId(puzzle.id);
+    setMagicManageStatus(
+      nextStatus === "hidden" ? "正在隐藏魔法谜题……" : "正在恢复魔法谜题……",
+    );
+
+    const { error } = await supabase
+      .from("magic_puzzles")
+      .update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", puzzle.id);
+
+    if (error) {
+      setMagicManageStatus(`状态更新失败：${error.message}`);
+      setSavingMagicPuzzleId(null);
+      return;
+    }
+
+    setMagicManageStatus(nextStatus === "hidden" ? "谜题已隐藏。" : "谜题已恢复开放。");
+    setSavingMagicPuzzleId(null);
+
+    await loadRecentMagicPuzzles();
+  }
+
+  async function handleDeleteMagicPuzzle(puzzle: MagicPuzzleRow) {
+    const confirmed = window.confirm(
+      `确认永久删除「${puzzle.title_cn}」吗？如果它已经有解锁记录、答案记录或绑定暗房内容，数据库可能会拒绝删除。正式内容建议优先隐藏。`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingMagicPuzzleId(puzzle.id);
+    setMagicManageStatus("正在删除魔法谜题……");
+
+    const { error } = await supabase
+      .from("magic_puzzles")
+      .delete()
+      .eq("id", puzzle.id);
+
+    if (error) {
+      setMagicManageStatus(
+        `删除失败：${error.message}。可以先隐藏，或解除暗房绑定后再删除。`,
+      );
+      setDeletingMagicPuzzleId(null);
+      return;
+    }
+
+    setMagicManageStatus("魔法谜题已删除。");
+    setDeletingMagicPuzzleId(null);
+
+    await loadRecentMagicPuzzles();
   }
 
   async function handleCreateStudioItem() {
@@ -1101,6 +1302,19 @@ export default function AdminPage() {
     setMessages((data ?? []) as MessageRow[]);
   }
 
+  async function loadHeroineProfile() {
+    const { data, error } = await supabase.rpc("get_admin_heroine_profile");
+
+    if (error) {
+        setErrorMessage(error.message);
+        return;
+    }
+
+    const heroineRow = Array.isArray(data) ? data[0] : null;
+
+    setHeroineProfile((heroineRow ?? null) as HeroineProfileRow | null);
+  }
+
   async function loadRecentEnergyTransactions() {
     const { data, error } = await supabase
       .from("energy_transactions")
@@ -1116,10 +1330,131 @@ export default function AdminPage() {
     setEnergyTransactions((data ?? []) as EnergyTransactionRow[]);
   }
 
+  async function handleCreateEnergyAdjustment() {
+    const parsedAmount = Number(energyAdjustmentAmount);
+    const roundedAmount = Number.isFinite(parsedAmount)
+        ? Math.round(parsedAmount)
+        : 0;
+    const reason = energyAdjustmentReason.trim();
+
+    if (!heroineProfile) {
+        setEnergyAdjustmentStatus("未找到 role 为 heroine 的用户，无法调整星光值。");
+        return;
+    }
+
+    if (!Number.isFinite(parsedAmount) || roundedAmount === 0) {
+        setEnergyAdjustmentStatus("请输入非 0 的调整数值，例如 +10 或 -30。");
+        return;
+    }
+
+    if (!reason) {
+        setEnergyAdjustmentStatus("请填写调整原因，方便之后追溯。");
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `确认为「${heroineProfile.display_name ?? "小欣"}」调整 ${getAmountLabel(
+        roundedAmount,
+        )} 星光值吗？\n\n原因：${reason}`,
+    );
+
+    if (!confirmed) return;
+
+    setIsSavingEnergyAdjustment(true);
+    setEnergyAdjustmentStatus("正在写入星光值调整流水……");
+
+    const { error } = await supabase.from("energy_transactions").insert({
+        user_id: heroineProfile.id,
+        amount: roundedAmount,
+        transaction_type: roundedAmount > 0 ? "gain" : "spend",
+        source: "manual",
+        description: `管理员调整：${reason}`,
+    });
+
+    if (error) {
+        setEnergyAdjustmentStatus(`调整失败：${error.message}`);
+        setIsSavingEnergyAdjustment(false);
+        return;
+    }
+
+    setEnergyAdjustmentAmount("");
+    setEnergyAdjustmentReason("");
+    setEnergyAdjustmentStatus("星光值调整已写入流水。");
+    setIsSavingEnergyAdjustment(false);
+
+    await loadRecentEnergyTransactions();
+  }
+
+  async function handleDeleteEnergyTransaction(transaction: EnergyTransactionRow) {
+    const effectiveAmount = getEnergyTransactionEffectiveAmount(transaction);
+    const balanceImpact = -effectiveAmount;
+    const balanceImpactText =
+        balanceImpact > 0
+        ? `增加 ${balanceImpact}`
+        : `减少 ${Math.abs(balanceImpact)}`;
+
+    const confirmed = window.confirm(
+        [
+        "确认永久删除这条星光值流水吗？",
+        "",
+        `流水：${getAmountLabel(effectiveAmount)} · ${
+            transaction.description ?? transaction.source
+        }`,
+        `删除后当前星光值会${balanceImpactText}。`,
+        "",
+        "这个操作适合清理测试数据；正式数据建议优先使用管理员调整流水。",
+        ].join("\n"),
+    );
+
+    if (!confirmed) return;
+
+    setDeletingEnergyTransactionId(transaction.id);
+    setEnergyTransactionManageStatus("正在删除星光值流水……");
+
+    const { error } = await supabase
+        .from("energy_transactions")
+        .delete()
+        .eq("id", transaction.id);
+
+    if (error) {
+        setEnergyTransactionManageStatus(`删除失败：${error.message}`);
+        setDeletingEnergyTransactionId(null);
+        return;
+    }
+
+    setEnergyTransactionManageStatus("星光值流水已删除。");
+    setDeletingEnergyTransactionId(null);
+
+    await loadRecentEnergyTransactions();
+  }
+
   async function loadRecentMagicPuzzles() {
     const { data, error } = await supabase
         .from("magic_puzzles")
-        .select("id, slug, title_cn, status, publish_at, reward_energy, created_at")
+        .select(
+          [
+              "id",
+              "slug",
+              "title_cn",
+              "title_en",
+              "riddle_cn",
+              "riddle_en",
+              "hint_cn",
+              "hint_en",
+              "unlock_note_cn",
+              "unlock_note_en",
+              "surprise_title_cn",
+              "surprise_title_en",
+              "surprise_note_cn",
+              "surprise_note_en",
+              "teaser_cn",
+              "teaser_en",
+              "status",
+              "publish_at",
+              "reward_energy",
+              "created_at",
+          ].join(", "),
+        )
         .order("publish_at", { ascending: false })
         .limit(30);
 
@@ -1128,7 +1463,7 @@ export default function AdminPage() {
         return;
     }
 
-    setRecentMagicPuzzles((data ?? []) as MagicPuzzleRow[]);
+    setRecentMagicPuzzles((data ?? []) as unknown as MagicPuzzleRow[]);
   }
 
   async function loadRecentStudioItems() {
@@ -1162,7 +1497,7 @@ const pendingReceiptCount = redemptions.filter(
   (redemption) => redemption.status === "pending_receipt",
 ).length;
 const recentEnergyNetAmount = energyTransactions.reduce(
-  (total, transaction) => total + transaction.amount,
+  (total, transaction) => total + getEnergyTransactionEffectiveAmount(transaction),
   0,
 );
 
@@ -1380,7 +1715,44 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
                     onCreate={() => void handleCreateMagicPuzzle()}
                 />
 
-                <MagicPuzzleList puzzles={recentMagicPuzzles} />
+                <MagicPuzzleList
+                    puzzles={recentMagicPuzzles}
+                    manageStatus={magicManageStatus}
+                    editingPuzzleId={editingMagicPuzzleId}
+                    savingPuzzleId={savingMagicPuzzleId}
+                    deletingPuzzleId={deletingMagicPuzzleId}
+                    editState={{
+                        slug: editMagicSlug,
+                        title: editMagicTitle,
+                        teaser: editMagicTeaser,
+                        riddle: editMagicRiddle,
+                        hint: editMagicHint,
+                        unlockNote: editMagicUnlockNote,
+                        status: editMagicStatus,
+                        publishAt: editMagicPublishAt,
+                        rewardEnergy: editMagicRewardEnergy,
+                        surpriseTitle: editMagicSurpriseTitle,
+                        surpriseNote: editMagicSurpriseNote,
+                        setSlug: setEditMagicSlug,
+                        setTitle: setEditMagicTitle,
+                        setTeaser: setEditMagicTeaser,
+                        setRiddle: setEditMagicRiddle,
+                        setHint: setEditMagicHint,
+                        setUnlockNote: setEditMagicUnlockNote,
+                        setStatus: setEditMagicStatus,
+                        setPublishAt: setEditMagicPublishAt,
+                        setRewardEnergy: setEditMagicRewardEnergy,
+                        setSurpriseTitle: setEditMagicSurpriseTitle,
+                        setSurpriseNote: setEditMagicSurpriseNote,
+                    }}
+                    onStartEdit={startEditMagicPuzzle}
+                    onSetStatus={(puzzle, nextStatus) =>
+                        void handleSetMagicPuzzleStatus(puzzle, nextStatus)
+                    }
+                    onDelete={(puzzle) => void handleDeleteMagicPuzzle(puzzle)}
+                    onSaveEdit={() => void handleUpdateMagicPuzzle()}
+                    onCancelEdit={cancelEditMagicPuzzle}
+                />
             </AdminSection>
         ) : null}
 
@@ -1464,6 +1836,13 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
             <ActivityPanel
                 messages={messages}
                 energyTransactions={energyTransactions}
+                heroineProfile={heroineProfile}
+                energyAdjustmentAmount={energyAdjustmentAmount}
+                energyAdjustmentReason={energyAdjustmentReason}
+                energyAdjustmentStatus={energyAdjustmentStatus}
+                isSavingEnergyAdjustment={isSavingEnergyAdjustment}
+                deletingEnergyTransactionId={deletingEnergyTransactionId}
+                energyTransactionManageStatus={energyTransactionManageStatus}
                 treeMessageWriteMode={treeMessageWriteMode}
                 treeMessageSettingStatus={treeMessageSettingStatus}
                 isSavingTreeMessageSetting={isSavingTreeMessageSetting}
@@ -1474,6 +1853,12 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
                 }
                 onToggleMessageHidden={(message) => void handleToggleMessageHidden(message)}
                 onDeleteMessage={(message) => void handleDeleteMessage(message)}
+                onEnergyAdjustmentAmountChange={setEnergyAdjustmentAmount}
+                onEnergyAdjustmentReasonChange={setEnergyAdjustmentReason}
+                onCreateEnergyAdjustment={() => void handleCreateEnergyAdjustment()}
+                onDeleteEnergyTransaction={(transaction) =>
+                    void handleDeleteEnergyTransaction(transaction)
+                }
             />
         ) : null}
       </div>
@@ -2192,9 +2577,16 @@ function MessageActivityCard({
 
 function EnergyTransactionCard({
   transaction,
+  isDeleting = false,
+  onDelete,
 }: {
   transaction: EnergyTransactionRow;
+  isDeleting?: boolean;
+  onDelete?: (transaction: EnergyTransactionRow) => void;
 }) {
+  const effectiveAmount = getEnergyTransactionEffectiveAmount(transaction);
+  const isGain = effectiveAmount >= 0;
+
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
       <div className="flex items-start justify-between gap-4">
@@ -2204,20 +2596,34 @@ function EnergyTransactionCard({
           </p>
 
           <p className="mt-1 text-xs text-stone-500">
-            {transaction.source} · {formatDateTime(transaction.created_at)}
+            {transaction.transaction_type} · {transaction.source} ·{" "}
+            {formatDateTime(transaction.created_at)}
           </p>
         </div>
 
         <span
           className={
-            transaction.amount >= 0
+            isGain
               ? "text-lg font-semibold text-emerald-200"
               : "text-lg font-semibold text-rose-200"
           }
         >
-          {getAmountLabel(transaction.amount)}
+          {getAmountLabel(effectiveAmount)}
         </span>
       </div>
+
+      {onDelete ? (
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => onDelete(transaction)}
+            disabled={isDeleting}
+            className="rounded-full border border-red-200/20 bg-red-400/10 px-3 py-1.5 text-xs font-semibold text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isDeleting ? "删除中……" : "删除流水"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2560,17 +2966,241 @@ function MagicCreateForm({
   );
 }
 
-function MagicPuzzleList({ puzzles }: { puzzles: MagicPuzzleRow[] }) {
+function MagicPuzzleEditForm({
+  slug,
+  title,
+  teaser,
+  riddle,
+  hint,
+  unlockNote,
+  status,
+  publishAt,
+  rewardEnergy,
+  surpriseTitle,
+  surpriseNote,
+  isSaving,
+  onSlugChange,
+  onTitleChange,
+  onTeaserChange,
+  onRiddleChange,
+  onHintChange,
+  onUnlockNoteChange,
+  onStatusChange,
+  onPublishAtChange,
+  onRewardEnergyChange,
+  onSurpriseTitleChange,
+  onSurpriseNoteChange,
+  onSave,
+  onCancel,
+}: {
+  slug: string;
+  title: string;
+  teaser: string;
+  riddle: string;
+  hint: string;
+  unlockNote: string;
+  status: MagicPuzzleStatus;
+  publishAt: string;
+  rewardEnergy: string;
+  surpriseTitle: string;
+  surpriseNote: string;
+  isSaving: boolean;
+  onSlugChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
+  onTeaserChange: (value: string) => void;
+  onRiddleChange: (value: string) => void;
+  onHintChange: (value: string) => void;
+  onUnlockNoteChange: (value: string) => void;
+  onStatusChange: (value: MagicPuzzleStatus) => void;
+  onPublishAtChange: (value: string) => void;
+  onRewardEnergyChange: (value: string) => void;
+  onSurpriseTitleChange: (value: string) => void;
+  onSurpriseNoteChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-4 grid gap-4 rounded-2xl border border-violet-100/15 bg-black/25 p-4 md:grid-cols-2">
+      <FormInput
+        label="Slug"
+        value={slug}
+        onChange={onSlugChange}
+        tone="violet"
+      />
+
+      <FormInput
+        label="谜题标题"
+        value={title}
+        onChange={onTitleChange}
+        tone="violet"
+      />
+
+      <FormInput
+        label="上线时间"
+        type="datetime-local"
+        value={publishAt}
+        onChange={onPublishAtChange}
+        tone="violet"
+      />
+
+      <FormInput
+        label="答对奖励星光值"
+        type="number"
+        min="0"
+        value={rewardEnergy}
+        onChange={onRewardEnergyChange}
+        tone="violet"
+      />
+
+      <FormSelect<MagicPuzzleStatus>
+        label="状态"
+        value={status}
+        onChange={onStatusChange}
+        tone="violet"
+      >
+        <option value="active">开放</option>
+        <option value="hidden">隐藏</option>
+      </FormSelect>
+
+      <FormTextarea
+        label="水晶球外层预告"
+        value={teaser}
+        onChange={onTeaserChange}
+        tone="violet"
+      />
+
+      <FormTextarea
+        label="谜题正文"
+        value={riddle}
+        onChange={onRiddleChange}
+        minHeightClass="min-h-28"
+        tone="violet"
+      />
+
+      <FormTextarea
+        label="提示"
+        value={hint}
+        onChange={onHintChange}
+        tone="violet"
+      />
+
+      <FormTextarea
+        label="解锁后文案"
+        value={unlockNote}
+        onChange={onUnlockNoteChange}
+        tone="violet"
+      />
+
+      <FormInput
+        label="暗房惊喜标题"
+        value={surpriseTitle}
+        onChange={onSurpriseTitleChange}
+        tone="violet"
+        spanFull
+      />
+
+      <FormTextarea
+        label="暗房惊喜提醒"
+        value={surpriseNote}
+        onChange={onSurpriseNoteChange}
+        tone="violet"
+      />
+
+      <div className="flex flex-wrap gap-3 md:col-span-2">
+        <ActionButton onClick={onSave} disabled={isSaving} tone="violet">
+          {isSaving ? "保存中……" : "保存修改"}
+        </ActionButton>
+
+        <ActionButton onClick={onCancel} tone="stone">
+          取消
+        </ActionButton>
+      </div>
+
+      <p className="text-xs leading-5 text-stone-500 md:col-span-2">
+        当前版本只编辑谜题展示内容。正确答案存放在 magic_puzzle_answers，后续单独接入答案编辑。
+      </p>
+    </div>
+  );
+}
+
+function MagicPuzzleList({
+  puzzles,
+  manageStatus,
+  editingPuzzleId,
+  savingPuzzleId,
+  deletingPuzzleId,
+  editState,
+  onStartEdit,
+  onSetStatus,
+  onDelete,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  puzzles: MagicPuzzleRow[];
+  manageStatus: string;
+  editingPuzzleId: string | null;
+  savingPuzzleId: string | null;
+  deletingPuzzleId: string | null;
+  editState: {
+    slug: string;
+    title: string;
+    teaser: string;
+    riddle: string;
+    hint: string;
+    unlockNote: string;
+    status: MagicPuzzleStatus;
+    publishAt: string;
+    rewardEnergy: string;
+    surpriseTitle: string;
+    surpriseNote: string;
+    setSlug: (value: string) => void;
+    setTitle: (value: string) => void;
+    setTeaser: (value: string) => void;
+    setRiddle: (value: string) => void;
+    setHint: (value: string) => void;
+    setUnlockNote: (value: string) => void;
+    setStatus: (value: MagicPuzzleStatus) => void;
+    setPublishAt: (value: string) => void;
+    setRewardEnergy: (value: string) => void;
+    setSurpriseTitle: (value: string) => void;
+    setSurpriseNote: (value: string) => void;
+  };
+  onStartEdit: (puzzle: MagicPuzzleRow) => void;
+  onSetStatus: (puzzle: MagicPuzzleRow, status: MagicPuzzleStatus) => void;
+  onDelete: (puzzle: MagicPuzzleRow) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
   return (
     <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
-      <h3 className="text-sm font-semibold text-stone-200">最近谜题</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-stone-200">最近谜题</h3>
+
+        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-stone-400">
+          显示最近 {puzzles.length} 个
+        </span>
+      </div>
+
+      <StatusLine message={manageStatus} tone="violet" />
 
       {puzzles.length === 0 ? (
         <p className="mt-3 text-sm text-stone-500">暂无魔法谜题。</p>
       ) : (
         <div className="mt-3 grid gap-3">
           {puzzles.map((puzzle) => (
-            <MagicPuzzleListCard key={puzzle.id} puzzle={puzzle} />
+            <MagicPuzzleListCard
+              key={puzzle.id}
+              puzzle={puzzle}
+              isEditing={editingPuzzleId === puzzle.id}
+              isSaving={savingPuzzleId === puzzle.id}
+              isDeleting={deletingPuzzleId === puzzle.id}
+              editState={editState}
+              onStartEdit={onStartEdit}
+              onSetStatus={onSetStatus}
+              onDelete={onDelete}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+            />
           ))}
         </div>
       )}
@@ -2578,7 +3208,52 @@ function MagicPuzzleList({ puzzles }: { puzzles: MagicPuzzleRow[] }) {
   );
 }
 
-function MagicPuzzleListCard({ puzzle }: { puzzle: MagicPuzzleRow }) {
+function MagicPuzzleListCard({
+  puzzle,
+  isEditing,
+  isSaving,
+  isDeleting,
+  editState,
+  onStartEdit,
+  onSetStatus,
+  onDelete,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  puzzle: MagicPuzzleRow;
+  isEditing: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  editState: {
+    slug: string;
+    title: string;
+    teaser: string;
+    riddle: string;
+    hint: string;
+    unlockNote: string;
+    status: MagicPuzzleStatus;
+    publishAt: string;
+    rewardEnergy: string;
+    surpriseTitle: string;
+    surpriseNote: string;
+    setSlug: (value: string) => void;
+    setTitle: (value: string) => void;
+    setTeaser: (value: string) => void;
+    setRiddle: (value: string) => void;
+    setHint: (value: string) => void;
+    setUnlockNote: (value: string) => void;
+    setStatus: (value: MagicPuzzleStatus) => void;
+    setPublishAt: (value: string) => void;
+    setRewardEnergy: (value: string) => void;
+    setSurpriseTitle: (value: string) => void;
+    setSurpriseNote: (value: string) => void;
+  };
+  onStartEdit: (puzzle: MagicPuzzleRow) => void;
+  onSetStatus: (puzzle: MagicPuzzleRow, status: MagicPuzzleStatus) => void;
+  onDelete: (puzzle: MagicPuzzleRow) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2594,10 +3269,73 @@ function MagicPuzzleListCard({ puzzle }: { puzzle: MagicPuzzleRow }) {
           </p>
         </div>
 
-        <StatusBadge tone="violet">
-          {puzzle.status === "active" ? "开放" : "隐藏"}
-        </StatusBadge>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone={puzzle.status === "active" ? "violet" : "stone"}>
+            {puzzle.status === "active" ? "开放" : "隐藏"}
+          </StatusBadge>
+
+          <ActionButton
+            onClick={() => onStartEdit(puzzle)}
+            tone="stone"
+            compact
+          >
+            编辑
+          </ActionButton>
+
+          <ActionButton
+            onClick={() =>
+              onSetStatus(
+                puzzle,
+                puzzle.status === "active" ? "hidden" : "active",
+              )
+            }
+            disabled={isSaving}
+            tone="violet"
+            compact
+          >
+            {puzzle.status === "active" ? "隐藏" : "恢复"}
+          </ActionButton>
+
+          <ActionButton
+            onClick={() => onDelete(puzzle)}
+            disabled={isDeleting}
+            tone="red"
+            compact
+          >
+            {isDeleting ? "删除中……" : "删除"}
+          </ActionButton>
+        </div>
       </div>
+
+      {isEditing ? (
+        <MagicPuzzleEditForm
+          slug={editState.slug}
+          title={editState.title}
+          teaser={editState.teaser}
+          riddle={editState.riddle}
+          hint={editState.hint}
+          unlockNote={editState.unlockNote}
+          status={editState.status}
+          publishAt={editState.publishAt}
+          rewardEnergy={editState.rewardEnergy}
+          surpriseTitle={editState.surpriseTitle}
+          surpriseNote={editState.surpriseNote}
+          isSaving={isSaving}
+          onSlugChange={editState.setSlug}
+          onTitleChange={editState.setTitle}
+          onTeaserChange={editState.setTeaser}
+          onRiddleChange={editState.setRiddle}
+          onHintChange={editState.setHint}
+          onUnlockNoteChange={editState.setUnlockNote}
+          onStatusChange={editState.setStatus}
+          onPublishAtChange={editState.setPublishAt}
+          onRewardEnergyChange={editState.setRewardEnergy}
+          onSurpriseTitleChange={editState.setSurpriseTitle}
+          onSurpriseNoteChange={editState.setSurpriseNote}
+          onSave={onSaveEdit}
+          onCancel={onCancelEdit}
+        />
+      ) : null}
     </div>
   );
 }
@@ -3094,6 +3832,13 @@ function MarketManagePanel({
 function ActivityPanel({
   messages,
   energyTransactions,
+  heroineProfile,
+  energyAdjustmentAmount,
+  energyAdjustmentReason,
+  energyAdjustmentStatus,
+  isSavingEnergyAdjustment,
+  deletingEnergyTransactionId,
+  energyTransactionManageStatus,
   treeMessageWriteMode,
   treeMessageSettingStatus,
   isSavingTreeMessageSetting,
@@ -3102,9 +3847,20 @@ function ActivityPanel({
   onTreeMessageWriteModeChange,
   onToggleMessageHidden,
   onDeleteMessage,
+  onEnergyAdjustmentAmountChange,
+  onEnergyAdjustmentReasonChange,
+  onCreateEnergyAdjustment,
+  onDeleteEnergyTransaction,
 }: {
   messages: MessageRow[];
   energyTransactions: EnergyTransactionRow[];
+  heroineProfile: HeroineProfileRow | null;
+  energyAdjustmentAmount: string;
+  energyAdjustmentReason: string;
+  energyAdjustmentStatus: string;
+  isSavingEnergyAdjustment: boolean;
+  deletingEnergyTransactionId: string | null;
+  energyTransactionManageStatus: string;
   treeMessageWriteMode: TreeWriteMode;
   treeMessageSettingStatus: string;
   isSavingTreeMessageSetting: boolean;
@@ -3113,7 +3869,11 @@ function ActivityPanel({
   onTreeMessageWriteModeChange: (nextMode: TreeWriteMode) => void;
   onToggleMessageHidden: (message: MessageRow) => void;
   onDeleteMessage: (message: MessageRow) => void;
-}) {
+  onEnergyAdjustmentAmountChange: (value: string) => void;
+  onEnergyAdjustmentReasonChange: (value: string) => void;
+  onCreateEnergyAdjustment: () => void;
+  onDeleteEnergyTransaction: (transaction: EnergyTransactionRow) => void;
+  }) {
   return (
     <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-[2rem] border border-emerald-100/15 bg-emerald-100/10 p-6 lg:col-span-2">
@@ -3203,21 +3963,80 @@ function ActivityPanel({
       </div>
 
       <div className="rounded-[2rem] border border-white/10 bg-white/10 p-6">
-        <h2 className="text-xl font-semibold">最近星光值流水</h2>
+        <div className="rounded-3xl border border-amber-100/15 bg-amber-100/10 p-5">
+            <p className="text-sm uppercase tracking-[0.2em] text-amber-100/70">
+                Energy Adjustment
+            </p>
 
-        <div className="mt-5 space-y-3">
-          {energyTransactions.length === 0 ? (
-            <p className="text-sm text-stone-400">暂无星光值流水。</p>
-          ) : (
-            energyTransactions.map((transaction) => (
-              <EnergyTransactionCard
-                key={transaction.id}
-                transaction={transaction}
-              />
-            ))
-          )}
+            <h2 className="mt-2 text-xl font-semibold">星光值调整</h2>
+
+            <p className="mt-2 text-sm leading-6 text-stone-300">
+                通过新增管理员调整流水来校准小欣的星光值，不直接修改总数。
+            </p>
+
+            <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-300">
+                调整对象：{heroineProfile?.display_name ?? "未找到 heroine 用户"}
+            </p>
+
+            <div className="mt-4 grid gap-4">
+                <FormInput
+                    label="调整数值"
+                    type="number"
+                    value={energyAdjustmentAmount}
+                    onChange={onEnergyAdjustmentAmountChange}
+                    placeholder="例如：+10 或 -30"
+                    help="正数增加星光值，负数扣减星光值。不能为 0。"
+                    tone="amber"
+                />
+
+                <FormTextarea
+                    label="调整原因"
+                    value={energyAdjustmentReason}
+                    onChange={onEnergyAdjustmentReasonChange}
+                    placeholder="例如：清理测试阶段星光值"
+                    minHeightClass="min-h-20"
+                    tone="amber"
+                />
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <ActionButton
+                    onClick={onCreateEnergyAdjustment}
+                    disabled={isSavingEnergyAdjustment || !heroineProfile}
+                    tone="amber"
+                    >
+                    {isSavingEnergyAdjustment ? "调整中……" : "写入调整流水"}
+                    </ActionButton>
+
+                    <StatusLine message={energyAdjustmentStatus} tone="amber" />
+                </div>
+            </div>
+        </div>
+
+        <div className="mt-6 border-t border-white/10 pt-6">
+            <h2 className="text-xl font-semibold">最近星光值流水</h2>
+
+            {energyTransactionManageStatus ? (
+              <p className="mt-3 rounded-2xl border border-amber-100/15 bg-amber-100/10 px-4 py-3 text-sm text-amber-100">
+                {energyTransactionManageStatus}
+              </p>
+            ) : null}
+
+            <div className="mt-5 space-y-3">
+            {energyTransactions.length === 0 ? (
+                <p className="text-sm text-stone-400">暂无星光值流水。</p>
+            ) : (
+                energyTransactions.map((transaction) => (
+                <EnergyTransactionCard
+                    key={transaction.id}
+                    transaction={transaction}
+                    isDeleting={deletingEnergyTransactionId === transaction.id}
+                    onDelete={onDeleteEnergyTransaction}
+                />
+                ))
+            )}
         </div>
       </div>
-    </section>
-  );
+    </div>
+  </section>
+);
 }
