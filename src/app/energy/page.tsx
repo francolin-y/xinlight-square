@@ -28,11 +28,14 @@ type EnergyTransactionRow = {
   created_at: string;
 };
 
+const ENERGY_BILL_DISPLAY_LIMIT = 20;
+
 const energyCopies = {
   cn: {
     standardTitle: "星光值收支标准",
     overviewTitle: "今日能量概览",
     billTitle: "星光值账单",
+    billLimitHint: "仅显示最近 20 条流水",
     totalEnergy: "当前星光值",
     todayGain: "今日已获得",
     todaySpend: "今日已消耗",
@@ -58,6 +61,7 @@ const energyCopies = {
     standardTitle: "Starlight Rules",
     overviewTitle: "Today’s Energy Overview",
     billTitle: "Starlight Bill",
+    billLimitHint: "Showing the latest 20 activities only",
     totalEnergy: "Current Starlight",
     todayGain: "Gained Today",
     todaySpend: "Spent Today",
@@ -253,6 +257,10 @@ export default function EnergyPage() {
     );
   }, [lang, transactions]);
 
+  const visibleBills = useMemo(() => {
+    return bills.slice(0, ENERGY_BILL_DISPLAY_LIMIT);
+  }, [bills]);
+
   const chargingStatus = getChargingStatus(todayGain);
 
   return (
@@ -351,6 +359,7 @@ export default function EnergyPage() {
             <div>
               <h2 className="text-2xl font-semibold">{page.billTitle}</h2>
               <p className="mt-2 text-sm text-slate-300">{todayKey}</p>
+              <p className="mt-1 text-xs text-slate-400">{page.billLimitHint}</p>
             </div>
 
             <div className="rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-950">
@@ -366,9 +375,9 @@ export default function EnergyPage() {
             <div className="rounded-2xl border border-rose-200/20 bg-rose-500/10 p-6 text-sm text-rose-100">
               {transactionError}
             </div>
-          ) : bills.length > 0 ? (
+          ) : visibleBills.length > 0 ? (
             <div className="grid gap-3">
-              {bills.map((bill) => {
+              {visibleBills.map((bill) => {
                 const isGain = bill.amount > 0;
                 const displayAmount = isGain ? `+${bill.amount}` : bill.amount;
 
