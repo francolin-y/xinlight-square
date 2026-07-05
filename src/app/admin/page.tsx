@@ -48,8 +48,13 @@ type RedemptionRow = {
 };
 
 type GiftType = "virtual" | "physical" | "date_plan";
-type StudioMediaType = "image" | "video";
-type StudioCategory = "sunlight" | "heartbeat" | "rose" | "bloopers";
+type StudioMediaType = "image" | "video" | "audio";
+type StudioCategory =
+  | "sunlight"
+  | "heartbeat"
+  | "rose"
+  | "bloopers"
+  | "audio";
 type StudioUnlockMode = "always" | "magic_puzzle" | "manual" | "password";
 type StudioItemStatus = "active" | "hidden";
 
@@ -258,7 +263,10 @@ function getStudioCategoryLabel(category: StudioCategory) {
   if (category === "sunlight") return "日光底片";
   if (category === "heartbeat") return "心跳短片";
   if (category === "rose") return "玫瑰暗格";
-  return "笨蛋花絮";
+  if (category === "bloopers") return "笨蛋花絮";
+  if (category === "audio") return "录音倒带";
+
+  return "未知分类";
 }
 
 function getStudioUnlockModeLabel(mode: StudioUnlockMode) {
@@ -517,7 +525,11 @@ export default function AdminPage() {
     const safeExtension =
         rawExtension.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
 
-    const folder = file.type.startsWith("video/") ? "videos" : "images";
+    const folder = file.type.startsWith("video/")
+      ? "videos"
+      : file.type.startsWith("audio/")
+        ? "audios"
+        : "images";
     const randomPart = Math.random().toString(36).slice(2);
     const filePath = `${folder}/${userId}/${Date.now()}-${randomPart}.${safeExtension}`;
 
@@ -1122,7 +1134,7 @@ export default function AdminPage() {
     }
 
     if (!studioImageFile) {
-        setStudioItemStatus("请先选择一张图片。");
+        setStudioItemStatus("请先选择一个图片、视频或音频素材。");
         return;
     }
 
@@ -1147,10 +1159,10 @@ export default function AdminPage() {
 
         const storagePath = await uploadStudioMedia(studioImageFile, user.id);
 
-        const studioMediaType: StudioMediaType = studioImageFile.type.startsWith(
-            "video/",
-            )
-            ? "video"
+        const studioMediaType: StudioMediaType = studioImageFile.type.startsWith("video/")
+          ? "video"
+          : studioImageFile.type.startsWith("audio/")
+            ? "audio"
             : "image";
 
         const { error } = await supabase.rpc("create_studio_item", {
@@ -2023,7 +2035,7 @@ const filteredStudioItems = recentStudioItems.filter((item) => {
             <AdminSection
                 eyebrow="Studio Item"
                 title="创建记忆暗房内容"
-                intro="上传图片或短视频，并设置它是默认开放，还是由某个 Magic 谜题解锁。"
+                intro="上传图片、短视频或音频，并设置它是默认开放，还是由某个 Magic 谜题解锁。"
                 tone="amber"
             >
 
@@ -2405,6 +2417,7 @@ function StudioEditForm({
         <option value="heartbeat">心跳短片</option>
         <option value="rose">玫瑰暗格</option>
         <option value="bloopers">笨蛋花絮</option>
+        <option value="audio">录音倒带</option>
       </FormSelect>
 
       <FormSelect<StudioUnlockMode>
@@ -3671,6 +3684,7 @@ function StudioCreateForm({
           <option value="heartbeat">心跳短片</option>
           <option value="rose">玫瑰暗格</option>
           <option value="bloopers">笨蛋花絮</option>
+          <option value="audio">录音倒带</option>
         </FormSelect>
 
         <FormSelect<StudioUnlockMode>
@@ -3720,14 +3734,14 @@ function StudioCreateForm({
           <span className="text-sm text-stone-300">素材文件</span>
           <input
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+            accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/webm,audio/ogg,.m4a"
             onChange={(event) => onImageFileChange(event.target.files?.[0] ?? null)}
             className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-stone-100 file:mr-4 file:rounded-full file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-stone-950"
           />
           <span className="text-xs text-stone-500">
             {imageFile
               ? imageFile.name
-              : "支持图片和短视频。建议视频先控制在较小体积。"}
+              : "支持图片、短视频和音频。建议视频先控制在较小体积。"}
           </span>
         </label>
 
@@ -3743,7 +3757,7 @@ function StudioCreateForm({
           label="内容描述"
           value={description}
           onChange={onDescriptionChange}
-          placeholder="图片或视频打开后显示的描述。"
+          placeholder="图片、视频或音频打开后显示的描述。"
           minHeightClass="min-h-24"
           tone="amber"
         />
@@ -3846,6 +3860,7 @@ function StudioManagePanel({
           <option value="heartbeat">心跳短片</option>
           <option value="rose">玫瑰暗格</option>
           <option value="bloopers">笨蛋花絮</option>
+          <option value="audio">录音倒带</option>
         </FormSelect>
 
         <FormSelect<StudioStatusFilter>

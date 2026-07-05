@@ -11,8 +11,13 @@ type LocalizedText = {
   en: string;
 };
 
-type StudioMediaType = "image" | "video";
-type StudioCategory = "sunlight" | "heartbeat" | "rose" | "bloopers";
+type StudioMediaType = "image" | "video" | "audio";
+type StudioCategory =
+  | "sunlight"
+  | "heartbeat"
+  | "rose"
+  | "bloopers"
+  | "audio";
 type StudioUnlockMode = "always" | "magic_puzzle" | "manual" | "password";
 type StudioDisplayItemStatus = "active" | "hidden";
 type StudioLoadStatus = "loading" | "allowed" | "signedOut" | "forbidden" | "error";
@@ -41,10 +46,12 @@ type StudioDisplayItemRpcRow = {
   is_unlocked: boolean;
 };
 
+type StudioDisplayItemType = "photo" | "video" | "audio";
+
 type StudioDisplayItem = {
   id: string;
   category: StudioCategory;
-  type: "photo" | "video" | "voice";
+  type: StudioDisplayItemType;
   status: "unlocked" | "locked";
   title: LocalizedText;
   description: LocalizedText;
@@ -91,7 +98,7 @@ const studioCopies = {
     types: {
       photo: "照片",
       video: "视频",
-      voice: "语音",
+      audio: "录音",
     },
     categories: {
       sunlight: {
@@ -114,6 +121,11 @@ const studioCopies = {
         intro: "左侧抽屉里塞着不太正经的搞笑片段。",
         action: "展开花絮胶卷",
       },
+      audio: {
+        title: "录音倒带",
+        intro: "收录了语音笔记和音频录音。",
+        action: "播放录音",
+      }
     },
     loadingArchive: "正在读取记忆暗房……",
     signedOutArchive: "请先登录后进入记忆暗房。",
@@ -155,7 +167,7 @@ const studioCopies = {
     types: {
       photo: "Photo",
       video: "Video",
-      voice: "Voice",
+      audio: "Audio",
     },
     categories: {
       sunlight: {
@@ -179,6 +191,11 @@ const studioCopies = {
         intro: "The left drawer stores less serious, funny fragments.",
         action: "Unroll bloopers",
       },
+      audio: {
+        title: "Audio Recordings",
+        intro: "A collection of voice notes and audio recordings.",
+        action: "Play recordings",
+      }
     },
     loadingArchive: "Loading Memory Darkroom...",
     signedOutArchive: "Please sign in before entering the Memory Darkroom.",
@@ -201,7 +218,12 @@ function mapStudioDisplayItemRow(row: StudioDisplayItemRpcRow, imageUrl: string)
   return {
     id: row.id.slice(0, 8),
     category: row.category,
-    type: row.media_type === "video" ? "video" : "photo",
+    type:
+      row.media_type === "video"
+        ? "video"
+        : row.media_type === "audio"
+          ? "audio"
+          : "photo",
     status: row.is_unlocked ? "unlocked" : "locked",
     title: {
       cn: row.title_cn,
@@ -250,6 +272,7 @@ export default function StudioPage() {
   const heartbeatItems = studioItems.filter((item) => item.category === "heartbeat");
   const roseItems = studioItems.filter((item) => item.category === "rose");
   const blooperItems = studioItems.filter((item) => item.category === "bloopers");
+  const audioItems = studioItems.filter((item) => item.category === "audio");
 
   const totalCount = studioItems.length;
   const unlockedCount = studioItems.filter((item) => item.status === "unlocked").length;
@@ -485,6 +508,16 @@ export default function StudioPage() {
               unlocked={blooperItems.filter((item) => item.status === "unlocked").length}
               onClick={() => openPanel("bloopers")}
             />
+
+            <MechanismCard
+              variant="audio"
+              title={page.categories.audio.title}
+              intro={page.categories.audio.intro}
+              action={page.categories.audio.action}
+              count={audioItems.length}
+              unlocked={audioItems.filter((item) => item.status === "unlocked").length}
+              onClick={() => openPanel("audio")}
+            />
           </div>
         </div>
       </section>
@@ -566,6 +599,20 @@ export default function StudioPage() {
                   title={page.categories.bloopers.title}
                   intro={page.categories.bloopers.intro}
                   items={blooperItems}
+                  lang={lang}
+                  typeLabels={page.types}
+                  lockedLabel={page.locked}
+                  unlockedLabel={page.unlocked}
+                  lockedHint={page.lockedHint}
+                  onOpenItem={openStudioItem}
+                />
+              )}
+
+              {activePanel === "audio" && (
+                <AudioReelViewer
+                  title={page.categories.audio.title}
+                  intro={page.categories.audio.intro}
+                  items={audioItems}
                   lang={lang}
                   typeLabels={page.types}
                   lockedLabel={page.locked}
@@ -799,7 +846,7 @@ function HangingNegativeCard({
             </div>
           </div>
 
-          {!isLocked && item.imageUrl && item.type !== "video" ? (
+          {!isLocked && item.imageUrl && item.type === "photo" ? (
             <img
               src={item.imageUrl}
               alt={item.title[lang]}
@@ -852,7 +899,7 @@ function MechanismCard({
   unlocked,
   onClick,
 }: {
-  variant: "camera" | "rose" | "film";
+  variant: "camera" | "rose" | "film" | "audio";
   title: string;
   intro: string;
   action: string;
@@ -863,6 +910,7 @@ function MechanismCard({
   const isCamera = variant === "camera";
   const isRose = variant === "rose";
   const isFilm = variant === "film";
+  const isAudio = variant === "audio";
 
   return (
     <button
@@ -878,6 +926,7 @@ function MechanismCard({
           {isCamera && <CameraGlyph />}
           {isRose && <RoseDrawerGlyph />}
           {isFilm && <FilmReelGlyph />}
+          {isAudio && <AudioDrawerGlyph />}
         </div>
 
         <div>
@@ -955,6 +1004,28 @@ function FilmReelGlyph() {
   );
 }
 
+function AudioDrawerGlyph() {
+  return (
+    <div className="relative h-28 w-28">
+      <div className="absolute inset-x-2 top-5 h-20 rounded-2xl border border-amber-100/20 bg-gradient-to-b from-stone-700 to-stone-950 shadow-2xl" />
+
+      <div className="absolute left-5 right-5 top-12 h-px bg-amber-100/25" />
+
+      <div className="absolute left-1/2 top-11 grid h-12 w-12 -translate-x-1/2 place-items-center rounded-full border border-amber-100/30 bg-black/55 text-xl text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.16)]">
+        ≋
+      </div>
+
+      <div className="absolute bottom-4 left-6 right-6 flex items-end justify-center gap-1">
+        <span className="h-3 w-1 rounded-full bg-amber-100/35" />
+        <span className="h-6 w-1 rounded-full bg-amber-100/55" />
+        <span className="h-4 w-1 rounded-full bg-amber-100/40" />
+        <span className="h-8 w-1 rounded-full bg-amber-100/65" />
+        <span className="h-5 w-1 rounded-full bg-amber-100/45" />
+      </div>
+    </div>
+  );
+}
+
 function ModalHeader({
   eyebrow,
   title,
@@ -1010,7 +1081,7 @@ function ArchiveEntry({
               : "border-amber-100/20 bg-amber-100/10 text-amber-100",
           ].join(" ")}
         >
-          {isLocked ? "▣" : item.type === "video" ? "▶" : item.type === "voice" ? "≈" : "◒"}
+          {isLocked ? "▣" : item.type === "video" ? "▶" : item.type === "audio" ? "≈" : "◒"}
         </div>
       </div>
 
@@ -1216,7 +1287,7 @@ function RoseCompartmentViewer({
   isUnlocked: boolean;
   items: StudioDisplayItem[];
   lang: "cn" | "en";
-  typeLabels: Record<"photo" | "video" | "voice", string>;
+  typeLabels: Record<StudioDisplayItemType, string>;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
@@ -1355,7 +1426,7 @@ function AlbumPage({
   pageLabel: string;
   items: StudioDisplayItem[];
   lang: "cn" | "en";
-  typeLabels: Record<"photo" | "video" | "voice", string>;
+  typeLabels: Record<StudioDisplayItemType, string>;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
@@ -1438,7 +1509,7 @@ function AlbumPhotoCard({
             : "border-stone-900/10 bg-gradient-to-br from-stone-800 via-stone-500 to-amber-100",
         ].join(" ")}
       >
-        {!isLocked && item.imageUrl && item.type !== "video" ? (
+        {!isLocked && item.imageUrl && item.type === "photo" ? (
           <img
             src={item.imageUrl}
             alt={item.title[lang]}
@@ -1500,7 +1571,7 @@ function BlooperReelViewer({
   intro: string;
   items: StudioDisplayItem[];
   lang: "cn" | "en";
-  typeLabels: Record<"photo" | "video" | "voice", string>;
+  typeLabels: Record<StudioDisplayItemType, string>;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
@@ -1558,6 +1629,170 @@ function BlooperReelViewer({
   );
 }
 
+function AudioReelViewer({
+  title,
+  intro,
+  items,
+  lang,
+  typeLabels,
+  lockedLabel,
+  unlockedLabel,
+  lockedHint,
+  onOpenItem,
+}: {
+  title: string;
+  intro: string;
+  items: StudioDisplayItem[];
+  lang: "cn" | "en";
+  typeLabels: Record<StudioDisplayItemType, string>;
+  lockedLabel: string;
+  unlockedLabel: string;
+  lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
+}) {
+  const unlockedCount = items.filter((item) => item.status === "unlocked").length;
+
+  return (
+    <>
+      <ModalHeader eyebrow="Audio Drawer" title={title} intro={intro} />
+
+      <div className="rounded-[2rem] border border-amber-100/15 bg-black/50 p-4 shadow-2xl shadow-black ring-1 ring-amber-100/10 md:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-amber-100/65">
+              Voice Archive
+            </p>
+            <h3 className="mt-2 text-2xl font-semibold text-stone-50">
+              {title}
+            </h3>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-sm">
+            <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-stone-200">
+              {unlockedCount} / {items.length}
+            </span>
+            <span className="rounded-full border border-amber-100/15 bg-amber-100/10 px-4 py-2 text-amber-100">
+              {unlockedLabel}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          {items.length === 0 ? (
+            <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-stone-500">
+              抽屉里还没有录音。
+            </div>
+          ) : (
+            items.map((item, index) => (
+              <AudioDrawerEntry
+                key={item.id}
+                item={item}
+                index={index}
+                lang={lang}
+                typeLabel={typeLabels[item.type]}
+                lockedLabel={lockedLabel}
+                unlockedLabel={unlockedLabel}
+                lockedHint={lockedHint}
+                onOpenItem={onOpenItem}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function AudioDrawerEntry({
+  item,
+  index,
+  lang,
+  typeLabel,
+  lockedLabel,
+  unlockedLabel,
+  lockedHint,
+  onOpenItem,
+}: {
+  item: StudioDisplayItem;
+  index: number;
+  lang: "cn" | "en";
+  typeLabel: string;
+  lockedLabel: string;
+  unlockedLabel: string;
+  lockedHint: string;
+  onOpenItem: (item: StudioDisplayItem) => void;
+}) {
+  const isLocked = item.status === "locked";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenItem(item)}
+      disabled={isLocked}
+      className={[
+        "group w-full rounded-[1.5rem] border bg-black/35 p-4 text-left shadow-xl transition duration-300 hover:-translate-y-1 hover:bg-black/45 disabled:cursor-not-allowed",
+        isLocked ? "border-white/5 opacity-65" : "border-amber-100/15",
+      ].join(" ")}
+    >
+      <div className="grid gap-4 md:grid-cols-[5rem_1fr_auto] md:items-center">
+        <div
+          className={[
+            "grid h-20 w-20 place-items-center rounded-2xl border text-3xl",
+            isLocked
+              ? "border-white/10 bg-black/35 text-stone-500"
+              : "border-amber-100/25 bg-amber-100/10 text-amber-100",
+          ].join(" ")}
+        >
+          {isLocked ? "▣" : "≋"}
+        </div>
+
+        <div>
+          <div className="mb-2 flex flex-wrap gap-2">
+            <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-stone-300">
+              #{String(index + 1).padStart(2, "0")}
+            </span>
+
+            <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-stone-300">
+              {typeLabel}
+            </span>
+
+            <span
+              className={[
+                "rounded-full border px-3 py-1 text-xs",
+                isLocked
+                  ? "border-white/10 bg-white/5 text-stone-500"
+                  : "border-amber-100/15 bg-amber-100/10 text-amber-100",
+              ].join(" ")}
+            >
+              {isLocked ? lockedLabel : unlockedLabel}
+            </span>
+          </div>
+
+          <h3 className="text-xl font-semibold text-stone-50">
+            {isLocked ? lockedLabel : item.title[lang]}
+          </h3>
+
+          <p className="mt-2 text-xs text-stone-500">{item.date}</p>
+
+          <p className="mt-3 text-sm leading-6 text-stone-300">
+            {isLocked ? item.teaser[lang] : item.description[lang]}
+          </p>
+        </div>
+
+        <div className="hidden items-end gap-1 md:flex">
+          {Array.from({ length: 12 }).map((_, barIndex) => (
+            <span
+              key={barIndex}
+              className="w-1 rounded-full bg-amber-100/35"
+              style={{ height: `${12 + ((barIndex * 7) % 28)}px` }}
+            />
+          ))}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function BlooperFilmFrame({
   item,
   index,
@@ -1579,9 +1814,9 @@ function BlooperFilmFrame({
 }) {
   const isLocked = item.status === "locked";
   const isVideo = item.type === "video";
-  const isVoice = item.type === "voice";
+  const isAudio = item.type === "audio";
 
-  const icon = isLocked ? "▣" : isVideo ? "▶" : isVoice ? "≈" : "◒";
+  const icon = isLocked ? "▣" : isVideo ? "▶" : isAudio ? "≋" : "◒";
 
   return (
     <button
@@ -1622,7 +1857,7 @@ function BlooperFilmFrame({
         >
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_35%,rgba(0,0,0,0.24))]" />
 
-          {!isLocked && item.imageUrl && item.type !== "video" ?  (
+          {!isLocked && item.imageUrl && item.type === "photo" ?  (
             <img
               src={item.imageUrl}
               alt={item.title[lang]}
@@ -1687,8 +1922,8 @@ function BlooperFilmFrame({
                 ? "Sealed Frame"
                 : isVideo
                   ? "Video Frame"
-                  : isVoice
-                    ? "Voice Frame"
+                  : isAudio
+                    ? "Audio Frame"
                     : "Photo Frame"}
             </span>
           </div>
@@ -1713,7 +1948,7 @@ function SunlightLightboxViewer({
   intro: string;
   items: StudioDisplayItem[];
   lang: "cn" | "en";
-  typeLabels: Record<"photo" | "video" | "voice", string>;
+  typeLabels: Record<StudioDisplayItemType, string>;
   lockedLabel: string;
   unlockedLabel: string;
   lockedHint: string;
@@ -1860,7 +2095,7 @@ function LightTableNegative({
         </div>
 
         <div className="grid aspect-[4/3] place-items-center px-8 py-6">
-          {!isLocked && item.imageUrl && item.type !== "video" ? (
+          {!isLocked && item.imageUrl && item.type === "photo" ? (
             <img
               src={item.imageUrl}
               alt={item.title[lang]}
@@ -1988,7 +2223,23 @@ function StudioItemModal({
               playsInline
               className="max-h-[62vh] w-full bg-black object-contain"
             />
-          ) : item.imageUrl ? (
+          ) : item.imageUrl && item.type === "audio" ? (
+            <div className="grid gap-5 p-6">
+              <div className="mx-auto grid h-24 w-24 place-items-center rounded-[2rem] border border-amber-100/20 bg-amber-100/10 text-4xl text-amber-100">
+                ≋
+              </div>
+
+              <p className="text-center text-sm text-stone-400">
+                请戴上耳机，慢慢听。
+              </p>
+
+              <audio
+                src={item.imageUrl}
+                controls
+                className="w-full"
+              />
+            </div>
+          ) : item.imageUrl && item.type === "photo" ? (
             <img
               src={item.imageUrl}
               alt={item.title[lang]}

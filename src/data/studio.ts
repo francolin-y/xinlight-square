@@ -1,6 +1,14 @@
-export type StudioCategory = "sunlight" | "heartbeat" | "rose" | "bloopers";
+export type StudioCategory =
+  | "sunlight"
+  | "heartbeat"
+  | "rose"
+  | "bloopers"
+  | "audio";
+
 export type StudioPanel = StudioCategory | "development";
-export type StudioItemType = "photo" | "video" | "voice";
+
+export type StudioItemType = "photo" | "video" | "audio";
+
 export type StudioItemStatus = "unlocked" | "locked";
 
 export type StudioItem = {
@@ -272,7 +280,7 @@ export const studioItems: StudioItem[] = [
   {
     id: "FUN-03",
     category: "bloopers",
-    type: "voice",
+    type: "audio",
     status: "locked",
     date: "????.??.??",
     title: {
@@ -286,5 +294,23 @@ export const studioItems: StudioItem[] = [
     puzzleId: "magic-014",
     isGuestVisible: false,
     order: 14,
+  },
+  {
+    id: "AUD-01",
+    category: "audio",
+    type: "audio",
+    status: "locked",
+    date: "????.??.??",
+    title: {
+      cn: "录音倒带 01",
+      en: "Audio Rewind 01",
+    },
+    description: {
+      cn: "一段还锁在抽屉里的声音。",
+      en: "A recording still locked inside the drawer.",
+    },
+    puzzleId: "magic-015",
+    isGuestVisible: false,
+    order: 15,
   },
 ];
