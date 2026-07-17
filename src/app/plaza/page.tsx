@@ -74,6 +74,16 @@ type EnergyTransactionRow = {
   amount: number | null;
 };
 
+type TodayPuzzleStatus = "loading" | "completed" | "incomplete" | "empty" | "error";
+
+type PlazaMagicPuzzleRow = {
+  id: string;
+  status: "active" | "hidden";
+  publish_at: string;
+  is_unlocked: boolean;
+  display_status: "sleeping" | "available" | "solved" | "hidden";
+};
+
 const checkinCopies = {
   cn: {
     loading: "正在读取",
@@ -109,6 +119,23 @@ const plazaActionCopies = {
   en: {
     redeemOnlyHeroine: "Only Heroine can redeem",
     solveOnlyHeroine: "Only Heroine can solve",
+  },
+};
+
+const todayPuzzleCopies = {
+  cn: {
+    loading: "正在读取",
+    completed: "今日已完成",
+    incomplete: "今日未完成",
+    empty: "今日暂无题目",
+    error: "读取失败",
+  },
+  en: {
+    loading: "Loading",
+    completed: "Completed today",
+    incomplete: "Incomplete today",
+    empty: "No puzzle today",
+    error: "Failed to load",
   },
 };
 
@@ -172,11 +199,27 @@ function getCurrentMonthLabel(lang: "cn" | "en") {
   }).format(now);
 }
 
+function getBeijingDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+
+  return `${year}-${month}-${day}`;
+}
+
 export default function HomePage() {
   const { lang, t } = useLanguage();
   const supabase = createClient();
   const checkinCopy = checkinCopies[lang];
   const actionCopy = plazaActionCopies[lang];
+  const todayPuzzleCopy = todayPuzzleCopies[lang];
 
   const [daysTogether, setDaysTogether] = useState(getDaysTogether());
   const [role, setRole] = useState<ProfileRole | null>(null);
@@ -186,6 +229,8 @@ export default function HomePage() {
   const [checkinToastKey, setCheckinToastKey] = useState(0);
   const [currentEnergy, setCurrentEnergy] = useState(0);
   const [isLoadingEnergy, setIsLoadingEnergy] = useState(true);
+  const [todayPuzzleStatus, setTodayPuzzleStatus] =
+    useState<TodayPuzzleStatus>("loading");
 
   const todayKey = getLocalDateKey(new Date());
   const hasCheckedInToday = checkinDates.includes(todayKey);
@@ -199,6 +244,18 @@ export default function HomePage() {
   const puzzleActionLabel = canUseHeroineActions
     ? t.home.startPuzzle
     : actionCopy.solveOnlyHeroine;
+
+  const todayPuzzleLabel =
+    todayPuzzleStatus === "loading"
+      ? todayPuzzleCopy.loading
+      : todayPuzzleStatus === "completed"
+        ? todayPuzzleCopy.completed
+        : todayPuzzleStatus === "empty"
+          ? todayPuzzleCopy.empty
+          : todayPuzzleStatus === "error"
+            ? todayPuzzleCopy.error
+            : todayPuzzleCopy.incomplete;
+
 
   const monthCalendar = getCurrentMonthCalendar(checkinDates);
   const monthLabel = getCurrentMonthLabel(lang);
@@ -284,6 +341,41 @@ export default function HomePage() {
     setIsLoadingEnergy(false);
   }
 
+  async function loadTodayPuzzleStatus() {
+    setTodayPuzzleStatus("loading");
+
+    const { data, error } = await supabase.rpc("get_magic_puzzles");
+
+    if (error) {
+      setTodayPuzzleStatus("error");
+      return;
+    }
+
+    const todayBeijingKey = getBeijingDateKey(new Date());
+    const rows = (data ?? []) as PlazaMagicPuzzleRow[];
+
+    const todayPuzzles = rows.filter((puzzle) => {
+      if (puzzle.status === "hidden" || puzzle.display_status === "hidden") {
+        return false;
+      }
+
+      return getBeijingDateKey(new Date(puzzle.publish_at)) === todayBeijingKey;
+    });
+
+    if (todayPuzzles.length === 0) {
+      setTodayPuzzleStatus("empty");
+      return;
+    }
+
+    const hasCompletedTodayPuzzle = todayPuzzles.some(
+      (puzzle) => puzzle.is_unlocked || puzzle.display_status === "solved",
+    );
+
+    setTodayPuzzleStatus(
+      hasCompletedTodayPuzzle ? "completed" : "incomplete",
+    );
+  }
+
   async function handleCheckin() {
     if (!canCheckIn) {
       setCheckinStatus(checkinCopy.onlyHeroine);
@@ -337,12 +429,23 @@ export default function HomePage() {
     loadCurrentProfile();
     loadCheckins();
     loadEnergyBalance();
+    loadTodayPuzzleStatus();
+
+    const handleFocus = () => {
+      void loadTodayPuzzleStatus();
+      void loadEnergyBalance();
+    };
+
+    window.addEventListener("focus", handleFocus);
 
     const timer = window.setInterval(() => {
       setDaysTogether(getDaysTogether());
     }, 60 * 1000);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", handleFocus);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -432,7 +535,7 @@ export default function HomePage() {
               <p className="text-sm text-amber-50">{t.home.todayPuzzle}</p>
               <div className="mt-3 flex items-center justify-between gap-4">
                 <p className="text-2xl font-semibold text-white">
-                  {t.home.incomplete}
+                  {todayPuzzleLabel}
                 </p>
                 <Link
                   href="/magic"
