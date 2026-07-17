@@ -525,8 +525,6 @@ function getMonthLabel(monthValue: string, lang: Lang) {
       setHintMessage(result?.result_message ?? page.hintOpened);
       setShowHintOffer(false);
 
-      await loadMagicPuzzles();
-
       setIsUnlockingHint(false);
     }
   
@@ -778,6 +776,28 @@ function getMonthLabel(monthValue: string, lang: Lang) {
                 {getText(selectedPuzzle.question, lang)}
               </p>
             </div>
+
+            {selectedPuzzle.hasHint ? (
+              selectedPuzzle.hintIsUnlocked ? (
+                <div className="mt-4 rounded-[1.5rem] border border-violet-200/25 bg-violet-100/10 p-5">
+                  <p className="text-sm uppercase tracking-[0.24em] text-violet-100">
+                    {page.clue}
+                  </p>
+                  <p className="mt-3 leading-7 text-slate-100">
+                    {getText(selectedPuzzle.hint, lang)}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm font-medium text-slate-300">
+                    {page.hintLockedTitle}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {page.hintLockedPreview}
+                  </p>
+                </div>
+              )
+            ) : null}
 
             {selectedPuzzle.displayStatus === "solved" ? (
               <div className="mt-6 grid gap-4 rounded-2xl border border-emerald-200/30 bg-emerald-200/10 p-5">
